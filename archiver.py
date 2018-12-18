@@ -10,6 +10,7 @@ def archive_url(url):
 
     # Raise `requests.exceptions.HTTPError` if 4XX or 5XX status
     r.raise_for_status()
+    print("Success!")
 
 
 def get_namespace(element):
@@ -37,6 +38,5 @@ if __name__ == "__main__":
 
     urls = download_sitemap("https://alexgude.com/sitemap.xml")
     for url in urls:
-        print(url)
-        print("\n")
+        print("Archiving: {url}".format(url=url))
         archive_url(url)
