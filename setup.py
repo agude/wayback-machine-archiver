@@ -25,7 +25,7 @@ setup(
     packages=find_packages(),
     entry_points={
         'console_scripts': [
-            'archiver=github-pages-archiver.archiver:main',
+            'archiver=github_pages_archiver.archiver:main',
         ],
     },
     classifiers=[
