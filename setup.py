@@ -14,7 +14,7 @@ except ImportError:
 # Configure the package
 setup(
     name="Github Pages Archiver",
-    version="0.1.0",
+    version="0.2.0",
     description="A script to backup Github Pages using the Internet Archive",
     long_description=long_description,
     author="Alexander Gude",

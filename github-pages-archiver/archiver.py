@@ -1,26 +1,30 @@
-import requests
+import argparse
+import logging
 import re
+import requests
 import xml.etree.ElementTree as ET
 
 
 def archive_url(url):
     """Submit a url to the Internet Archive to archive."""
+    logging.info("Archiving %s", url)
     SAVE_URL = "https://web.archive.org/save/"
+    logging.debug("Using archive url %s", SAVE_URL)
     r = requests.get(SAVE_URL + url)
 
     # Raise `requests.exceptions.HTTPError` if 4XX or 5XX status
     r.raise_for_status()
-    print("Success!")
 
 
 def get_namespace(element):
     """Extract the namespace using a regular expression."""
-    match = re.match('\{.*\}', element.tag)
+    match = re.match(r"\{.*\}", element.tag)
     return match.group(0) if match else ''
 
 
 def download_sitemap(site_map_url):
     """Download the sitemap of the target website."""
+    logging.info("Processing: %s", site_map_url)
     r = requests.get(site_map_url)
     root = ET.fromstring(r.text)
 
@@ -34,9 +38,42 @@ def download_sitemap(site_map_url):
     return set(urls)
 
 
-if __name__ == "__main__":
+def main():
+    # Command line parsing
+    parser = argparse.ArgumentParser(
+        prog="Github Pages Archiver",
+        description="A script to backup a Github Pages site with Internet Archive",
+    )
+    parser.add_argument(
+        "sitemaps",
+        nargs="+",
+        help="one or more sitemap urls to load",
+    )
+    parser.add_argument(
+        "--log",
+        help="set the logging level, defaults to WARNING",
+        dest="log_level",
+        default=logging.WARNING,
+        choices=[
+            'DEBUG',
+            'INFO',
+            'WARNING',
+            'ERROR',
+            'CRITICAL',
+        ],
+    )
 
-    urls = download_sitemap("https://alexgude.com/sitemap.xml")
-    for url in urls:
-        print("Archiving: {url}".format(url=url))
-        archive_url(url)
+    args = parser.parse_args()
+
+    # Set the logging level based on the arguments
+    logging.basicConfig(level=args.log_level)
+
+    logging.debug("Arguments: {args}".format(args=args))
+
+    # Download and process the sitemaps
+    for sitemap in args.sitemaps:
+        for url in download_sitemap(sitemap):
+            archive_url(url)
+
+if __name__ == "__main__":
+    main()
