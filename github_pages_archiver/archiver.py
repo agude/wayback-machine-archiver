@@ -9,8 +9,9 @@ def archive_url(url):
     """Submit a url to the Internet Archive to archive."""
     logging.info("Archiving %s", url)
     SAVE_URL = "https://web.archive.org/save/"
-    logging.debug("Using archive url %s", SAVE_URL)
-    r = requests.get(SAVE_URL + url)
+    request_url = SAVE_URL + url
+    logging.debug("Using archive url %s", request_url)
+    r = requests.get(request_url)
 
     # Raise `requests.exceptions.HTTPError` if 4XX or 5XX status
     r.raise_for_status()
