@@ -30,10 +30,10 @@ def download_sitemap(site_map_url):
     root = ET.fromstring(r.text.encode("utf-8"))
 
     # Sitemaps use a namespace in the XML, which we need to read
-    ns = get_namespace(root)
+    namespace = get_namespace(root)
 
     urls = []
-    for loc_node in root.findall(".//{}loc".format(ns)):
+    for loc_node in root.findall(".//{}loc".format(namespace)):
         urls.append(loc_node.text)
 
     return set(urls)
