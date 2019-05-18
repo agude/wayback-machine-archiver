@@ -20,20 +20,20 @@ def archive_url(url):
 def get_namespace(element):
     """Extract the namespace using a regular expression."""
     match = re.match(r"\{.*\}", element.tag)
-    return match.group(0) if match else ''
+    return match.group(0) if match else ""
 
 
 def download_sitemap(site_map_url):
     """Download the sitemap of the target website."""
     logging.info("Processing: %s", site_map_url)
     r = requests.get(site_map_url)
-    root = ET.fromstring(r.text)
+    root = ET.fromstring(r.text.encode("utf-8"))
 
     # Sitemaps use a namespace in the XML, which we need to read
-    ns = get_namespace(root)
+    namespace = get_namespace(root)
 
     urls = []
-    for loc_node in root.findall(".//{}loc".format(ns)):
+    for loc_node in root.findall(".//{}loc".format(namespace)):
         urls.append(loc_node.text)
 
     return set(urls)
@@ -56,11 +56,11 @@ def main():
         dest="log_level",
         default=logging.WARNING,
         choices=[
-            'DEBUG',
-            'INFO',
-            'WARNING',
-            'ERROR',
-            'CRITICAL',
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL",
         ],
     )
 
@@ -75,6 +75,7 @@ def main():
     for sitemap in args.sitemaps:
         for url in download_sitemap(sitemap):
             archive_url(url)
+
 
 if __name__ == "__main__":
     main()
