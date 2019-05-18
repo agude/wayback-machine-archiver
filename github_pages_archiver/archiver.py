@@ -20,7 +20,7 @@ def archive_url(url):
 def get_namespace(element):
     """Extract the namespace using a regular expression."""
     match = re.match(r"\{.*\}", element.tag)
-    return match.group(0) if match else ''
+    return match.group(0) if match else ""
 
 
 def download_sitemap(site_map_url):
@@ -56,11 +56,11 @@ def main():
         dest="log_level",
         default=logging.WARNING,
         choices=[
-            'DEBUG',
-            'INFO',
-            'WARNING',
-            'ERROR',
-            'CRITICAL',
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL",
         ],
     )
 
@@ -75,6 +75,7 @@ def main():
     for sitemap in args.sitemaps:
         for url in download_sitemap(sitemap):
             archive_url(url)
+
 
 if __name__ == "__main__":
     main()
