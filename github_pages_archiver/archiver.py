@@ -27,7 +27,7 @@ def download_sitemap(site_map_url):
     """Download the sitemap of the target website."""
     logging.info("Processing: %s", site_map_url)
     r = requests.get(site_map_url)
-    root = ET.fromstring(r.text)
+    root = ET.fromstring(r.text.encode("utf-8"))
 
     # Sitemaps use a namespace in the XML, which we need to read
     ns = get_namespace(root)
