@@ -75,7 +75,7 @@ def main():
     # Set the logging level based on the arguments
     logging.basicConfig(level=args.log_level)
 
-    logging.debug("Arguments: {args}".format(args=args))
+    logging.debug("Arguments: %s", args)
 
     # Download and process the sitemaps
     for sitemap_url in args.sitemaps:
