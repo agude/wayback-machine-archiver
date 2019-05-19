@@ -1,3 +1,5 @@
+# -*- coding: UTF-8 -*-
+from __future__ import unicode_literals
 from github_pages_archiver.archiver import extract_pages_from_sitemap
 
 
