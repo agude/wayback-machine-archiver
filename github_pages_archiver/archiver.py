@@ -4,12 +4,17 @@ import re
 import requests
 import xml.etree.ElementTree as ET
 
-
-def archive_url(url):
-    """Submit a url to the Internet Archive to archive."""
+def format_archive_url(url):
+    """Given a URL, constructs an Archive URL to submit the archive request."""
     logging.info("Archiving %s", url)
     SAVE_URL = "https://web.archive.org/save/"
     request_url = SAVE_URL + url
+
+    return request_url
+
+
+def call_archiver(request_url):
+    """Submit a url to the Internet Archive to archive."""
     logging.debug("Using archive url %s", request_url)
     r = requests.get(request_url)
 
@@ -77,11 +82,17 @@ def main():
 
     logging.debug("Arguments: %s", args)
 
+    archive_urls = []
     # Download and process the sitemaps
     for sitemap_url in args.sitemaps:
         sitemap_xml = download_sitemap(sitemap_url)
         for url in extract_pages_from_sitemap(sitemap_xml):
-            archive_url(url)
+            archive_urls.append(format_archive_url(url))
+
+    # Archive the URLs
+    logging.debug("Archive URLs: %s", archive_urls)
+    for archive_url in archive_urls:
+        call_archiver(archive_url)
 
 
 if __name__ == "__main__":
