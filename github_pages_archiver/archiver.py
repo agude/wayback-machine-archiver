@@ -27,7 +27,13 @@ def download_sitemap(site_map_url):
     """Download the sitemap of the target website."""
     logging.info("Processing: %s", site_map_url)
     r = requests.get(site_map_url)
-    root = ET.fromstring(r.text.encode("utf-8"))
+
+    return r.text.encode("utf-8")
+
+
+def extract_pages_from_sitemap(site_map_text):
+    """Extract the various pages from the sitemap text. """
+    root = ET.fromstring(site_map_text)
 
     # Sitemaps use a namespace in the XML, which we need to read
     namespace = get_namespace(root)
@@ -72,8 +78,9 @@ def main():
     logging.debug("Arguments: {args}".format(args=args))
 
     # Download and process the sitemaps
-    for sitemap in args.sitemaps:
-        for url in download_sitemap(sitemap):
+    for sitemap_url in args.sitemaps:
+        sitemap_xml = download_sitemap(sitemap_url)
+        for url in extract_pages_from_sitemap(sitemap_xml):
             archive_url(url)
 
 
