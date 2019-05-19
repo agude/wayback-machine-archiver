@@ -2,15 +2,28 @@ language: python
 
 python:
   - "2.7"
+  - "3.3"
+  - "3.4"
   - "3.5"
   - "3.6"
-    # Also test pypy
+  # Defaults for Ubuntu 16.04
+  - "2.7.12"
+  - "3.5.2"
+  # Defaults for Ubuntu 18.04
+  - "2.7.15"
+  - "3.6.7"
+  # Also test pypy
   - "pypy3.5"
+
+install: pip install -r requirements.txt
 
 matrix:
   include:
-    - python: '3.7'
+    - python: "3.7"
       dist: xenial  # required for Python >= 3.7 (travis-ci/travis-ci#9069)
 
 # Run the unit tests
-script: python -m pytest -v
+script:
+  - python -m pytest -v
+  - pip install .
+  - archiver --help
