@@ -76,6 +76,13 @@ def main():
             "CRITICAL",
         ],
     )
+    parser.add_argument(
+        "--archive-sitemap",
+        help="also submit the URL of the sitemap to be archived",
+        dest="archive_sitemap",
+        default=False,
+        action="store_true",
+    )
 
     args = parser.parse_args()
 
@@ -90,6 +97,11 @@ def main():
         sitemap_xml = download_sitemap(sitemap_url)
         for url in extract_pages_from_sitemap(sitemap_xml):
             archive_urls.append(format_archive_url(url))
+
+    # Archive the sitemap as well, if requested
+    if args.archive_sitemap:
+        logging.info("Archiveing sitemaps")
+        archive_urls += map(format_archive_url, args.sitemaps)
 
     # Archive the URLs
     logging.debug("Archive URLs: %s", archive_urls)
