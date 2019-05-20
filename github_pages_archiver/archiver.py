@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 
 def format_archive_url(url):
     """Given a URL, constructs an Archive URL to submit the archive request."""
-    logging.info("Archiving %s", url)
+    logging.debug("Creating archive URL for %s", url)
     SAVE_URL = "https://web.archive.org/save/"
     request_url = SAVE_URL + url
 
@@ -15,8 +15,8 @@ def format_archive_url(url):
 
 def call_archiver(request_url):
     """Submit a url to the Internet Archive to archive."""
-    logging.debug("Using archive url %s", request_url)
-    r = requests.get(request_url)
+    logging.info("Using archive url %s", request_url)
+    r = requests.head(request_url)
 
     # Raise `requests.exceptions.HTTPError` if 4XX or 5XX status
     r.raise_for_status()
