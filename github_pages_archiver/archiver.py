@@ -1,12 +1,14 @@
 import argparse
 import logging
+import multiprocessing as mp
 import re
 import requests
 import xml.etree.ElementTree as ET
 
+
 def format_archive_url(url):
     """Given a URL, constructs an Archive URL to submit the archive request."""
-    logging.info("Archiving %s", url)
+    logging.debug("Creating archive URL for %s", url)
     SAVE_URL = "https://web.archive.org/save/"
     request_url = SAVE_URL + url
 
@@ -15,8 +17,8 @@ def format_archive_url(url):
 
 def call_archiver(request_url):
     """Submit a url to the Internet Archive to archive."""
-    logging.debug("Using archive url %s", request_url)
-    r = requests.get(request_url)
+    logging.info("Using archive url %s", request_url)
+    r = requests.head(request_url)
 
     # Raise `requests.exceptions.HTTPError` if 4XX or 5XX status
     r.raise_for_status()
@@ -91,8 +93,10 @@ def main():
 
     # Archive the URLs
     logging.debug("Archive URLs: %s", archive_urls)
-    for archive_url in archive_urls:
-        call_archiver(archive_url)
+    pool = mp.Pool(processes=10)
+    pool.map(call_archiver, archive_urls)
+    pool.close()
+    pool.join()
 
 
 if __name__ == "__main__":
