@@ -17,7 +17,7 @@ def format_archive_url(url):
 
 def call_archiver(request_url):
     """Submit a url to the Internet Archive to archive."""
-    logging.info("Using archive url %s", request_url)
+    logging.info("Calling archive url %s", request_url)
     r = requests.head(request_url)
 
     # Raise `requests.exceptions.HTTPError` if 4XX or 5XX status
@@ -32,7 +32,7 @@ def get_namespace(element):
 
 def download_sitemap(site_map_url):
     """Download the sitemap of the target website."""
-    logging.info("Processing: %s", site_map_url)
+    logging.debug("Downloading: %s", site_map_url)
     r = requests.get(site_map_url)
 
     return r.text.encode("utf-8")
@@ -56,12 +56,20 @@ def main():
     # Command line parsing
     parser = argparse.ArgumentParser(
         prog="Github Pages Archiver",
-        description="A script to backup a Github Pages site with Internet Archive",
+        description="A script to backup a web pages with Internet Archive",
     )
     parser.add_argument(
-        "sitemaps",
+        "urls",
+        nargs="*",
+        default=[],
+        help="the URLs of the pages to archive",
+    )
+    parser.add_argument(
+        "--sitemaps",
         nargs="+",
-        help="one or more sitemap urls to load",
+        default=[],
+        help="one or more URLs to sitemaps listing pages to archive",
+        required=False,
     )
     parser.add_argument(
         "--log",
@@ -77,7 +85,7 @@ def main():
         ],
     )
     parser.add_argument(
-        "--archive-sitemap",
+        "--archive-sitemap-also",
         help="also submit the URL of the sitemap to be archived",
         dest="archive_sitemap",
         default=False,
@@ -92,15 +100,22 @@ def main():
     logging.debug("Arguments: %s", args)
 
     archive_urls = []
+    # Add the regular pages
+    if args.urls:
+        logging.info("Adding page URLs to archive")
+        logging.debug("Page URLs to archive: %s", args.urls)
+        archive_urls += args.urls
+
     # Download and process the sitemaps
     for sitemap_url in args.sitemaps:
+        logging.info("Parsing sitemaps")
         sitemap_xml = download_sitemap(sitemap_url)
         for url in extract_pages_from_sitemap(sitemap_xml):
             archive_urls.append(format_archive_url(url))
 
     # Archive the sitemap as well, if requested
     if args.archive_sitemap:
-        logging.info("Archiveing sitemaps")
+        logging.info("Archiving sitemaps")
         archive_urls += map(format_archive_url, args.sitemaps)
 
     # Archive the URLs
