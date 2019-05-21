@@ -6,6 +6,8 @@ python:
   - "3.4"
   - "3.5"
   - "3.6"
+  # Miniconda on Raspberry Pi
+  - "2.7.10"
   # Defaults for Ubuntu 16.04
   - "2.7.12"
   - "3.5.2"
