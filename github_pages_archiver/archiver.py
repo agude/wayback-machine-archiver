@@ -104,7 +104,7 @@ def main():
     if args.urls:
         logging.info("Adding page URLs to archive")
         logging.debug("Page URLs to archive: %s", args.urls)
-        archive_urls += args.urls
+        archive_urls += map(format_archive_url, args.urls)
 
     # Download and process the sitemaps
     for sitemap_url in args.sitemaps:
