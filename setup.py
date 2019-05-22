@@ -4,6 +4,14 @@ import re
 from setuptools import setup, find_packages
 
 
+# Get the version from the main script
+version = re.search(
+    '^__version__\s*=\s*"(.*)"',
+    open("wayback_machine_archiver/archiver.py").read(),
+    re.M,
+).group(1)
+
+
 # Try to import pypandoc to convert the readme, otherwise ignore it
 try:
     import pypandoc
@@ -14,7 +22,7 @@ except ImportError:
 # Configure the package
 setup(
     name="Github Pages Archiver",
-    version="0.8.1",
+    version=version,
     description="A script to backup Github Pages using the Internet Archive",
     long_description=long_description,
     author="Alexander Gude",

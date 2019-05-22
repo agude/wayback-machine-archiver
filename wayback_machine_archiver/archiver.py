@@ -6,6 +6,10 @@ import requests
 import xml.etree.ElementTree as ET
 
 
+# Library version
+__version__ = "0.9.0"
+
+
 def format_archive_url(url):
     """Given a URL, constructs an Archive URL to submit the archive request."""
     logging.debug("Creating archive URL for %s", url)
