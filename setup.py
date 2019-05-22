@@ -21,9 +21,9 @@ except ImportError:
 
 # Configure the package
 setup(
-    name="Github Pages Archiver",
+    name="Wayback Machine Archiver",
     version=version,
-    description="A script to backup Github Pages using the Internet Archive",
+    description="A Python script to submit web pages to the Wayback Machine for archiving.",
     long_description=long_description,
     author="Alexander Gude",
     author_email="alex.public.account@gmail.com",
@@ -33,23 +33,30 @@ setup(
     packages=find_packages(),
     entry_points={
         'console_scripts': [
-            'archiver=github_pages_archiver.archiver:main',
+            'archiver=wayback_machine_archiver.archiver:main',
         ],
     },
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 5 - Production/Stable",
         "Environment :: Console",
         "Intended Audience :: System Administrators",
         "License :: OSI Approved :: MIT License",
         "Natural Language :: English",
         "Operating System :: OS Independent",
+        "Programming Language :: Python",
         "Topic :: Utilities",
     ],
     keywords=[
-        "Github Pages",
         "Internet Archive",
+        "Wayback Machine",
     ],
     install_requires=[
-        'requests',
+        "requests",
     ],
+    setup_requires=[
+        "pypandoc",
+        "pytest-runner",
+    ],
+    tests_require=["pytest"],
+    python_requires='>=2.6, !=3.0.*, !=3.1.*, !=3.2.*, <4',
 )
