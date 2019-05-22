@@ -1,28 +1,31 @@
 language: python
 
+dist: xenial
+
 python:
   - "2.7"
-  - "3.3"
   - "3.4"
   - "3.5"
   - "3.6"
-  # Miniconda on Raspberry Pi
-  - "2.7.10"
-  # Defaults for Ubuntu 16.04
-  - "2.7.12"
-  - "3.5.2"
-  # Defaults for Ubuntu 18.04
-  - "2.7.15"
-  - "3.6.7"
+  - "3.7"
+  - "3.7-dev"
+  - "3.8-dev"
+  - "nightly"
   # Also test pypy
-  - "pypy3.5"
+  - "pypy"
+  - "pypy3"
 
-install: pip install -r requirements.txt
+install: 
+  - pip install -r requirements.txt
+  - pip install pypandoc
 
-matrix:
-  include:
-    - python: "3.7"
-      dist: xenial  # required for Python >= 3.7 (travis-ci/travis-ci#9069)
+addons:
+  apt_packages:
+    - pandoc  # Required to convert the README to a Pypi description
+
+addons:
+  apt_packages:
+    - pandoc  # Required to convert the README to a Pypi description
 
 # Run the unit tests
 script:
