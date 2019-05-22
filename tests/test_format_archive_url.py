@@ -1,4 +1,4 @@
-from github_pages_archiver.archiver import format_archive_url
+from wayback_machine_archiver.archiver import format_archive_url
 
 
 def test_archive_org():
