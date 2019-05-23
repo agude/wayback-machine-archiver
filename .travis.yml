@@ -1,7 +1,5 @@
 language: python
-
 dist: xenial
-
 python:
   - "2.7"
   - "3.4"
@@ -14,21 +12,30 @@ python:
   # Also test pypy
   - "pypy"
   - "pypy3"
-
 install: 
   - pip install -r requirements.txt
   - pip install pypandoc
-
 addons:
   apt_packages:
     - pandoc  # Required to convert the README to a Pypi description
-
-addons:
-  apt_packages:
-    - pandoc  # Required to convert the README to a Pypi description
-
-# Run the unit tests
 script:
   - python -m pytest -v
   - pip install .
   - archiver --help
+
+# The default job (above) is the test job, the package build job is specified below
+jobs:
+  include:
+    - stage: build
+      python: "3.7"
+      script: 
+      deploy:
+        provider: pypi
+        user: alexgude
+        password:
+          secure: KiJSErVrIcSOk2cVwaa5u3ljFZpx5tIcBmCdIp8dzZ1efP8TFl7FU6CstiU9p1SuI3n7qf568mxM7InJeKKiOERLtM0Llh0RZb8MaB9acFx+DcSkIUlK6QJCosCtBthRVh9ng9406Haom2VQmjfdiNkdkPNOMiD6jtD4hubEa3JeVZ7uwcJe1Vc+FQMu2KqqVO6VLE8NqqdEqjyTNhPEsPWq7xwwbW8cD4BrFaibgHEvktqG01DvWqf8lFhS+R8hXfwWt6b8lpXDqgjObj2dQ3jAiZuihlC1OSFUXjyZu7Zult7eiCYisQeGz5uwznoBeY8dnvGZzs0sIVEb/0Z7jGk9B7GIPQXWabzCKeiYnPkzUpBZmupuaJp8Bjlzel+SIFhy8X7P0jIMDD8bvrB+Gm6k3zPG+4oJWgyzdK1G0Id3n9H41kiTVQFGNjlGF2JVWXK7HTT9RyFII97ciDtgFBcoGZTGNHp4mmL7vv1roCW1N8wLwy0yCRU3z86R9iFRd5hkgW851bSMyLAKdRNQU4p9TwSWnQs7DPSszZR68LnD3ccl0sSghjXSmE2hCBsVYp4NtfnDNN81zimU4zjusa2b5AL9BbrtPhdAf5U+5vVPzIoDy1OJNqkYgHvs+QZPLyIacZ71rmXrRNTh1itpsDv5iERGdONwEVAvI/7eOBs=
+        on:
+          tags: true
+          branch: master
+          repo: agude/wayback-machine-archiver
+        skip_existing: true
