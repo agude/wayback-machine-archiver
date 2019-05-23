@@ -28,7 +28,7 @@ jobs:
   include:
     - stage: build
       python: "3.7"
-      script: 
+      script: echo "Starting Pypi build"
       deploy:
         provider: pypi
         user: alexgude
