@@ -15,7 +15,7 @@ version = re.search(
 # Try to import pypandoc to convert the readme, otherwise ignore it
 try:
     import pypandoc
-    long_description = pypandoc.convert('README.md', 'rst')
+    long_description = pypandoc.convert_file("README.md", "rst", format="md")
 except ImportError:
     long_description = ""
 
@@ -32,8 +32,8 @@ setup(
     platforms=["any"],
     packages=find_packages(),
     entry_points={
-        'console_scripts': [
-            'archiver=wayback_machine_archiver.archiver:main',
+        "console_scripts": [
+            "archiver=wayback_machine_archiver.archiver:main",
         ],
     },
     classifiers=[
@@ -58,5 +58,5 @@ setup(
         "pytest-runner",
     ],
     tests_require=["pytest"],
-    python_requires='>=2.6, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, <4',
+    python_requires=">=2.6, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, <4",
 )
