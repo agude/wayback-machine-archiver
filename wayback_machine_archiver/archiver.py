@@ -95,6 +95,13 @@ def main():
         default=False,
         action="store_true",
     )
+    parser.add_argument(
+        "--jobs",
+        "-j",
+        help="run this many concurrent URL submissions, defaults to 1",
+        default=1,
+        type=int,
+    )
 
     args = parser.parse_args()
 
@@ -124,7 +131,7 @@ def main():
 
     # Archive the URLs
     logging.debug("Archive URLs: %s", archive_urls)
-    pool = mp.Pool(processes=10)
+    pool = mp.Pool(processes=args.jobs)
     pool.map(call_archiver, archive_urls)
     pool.close()
     pool.join()
