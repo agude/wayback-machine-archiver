@@ -21,16 +21,16 @@ except ImportError:
 
 # Configure the package
 setup(
-    name="Wayback Machine Archiver",
+    name="wayback-machine-archiver",
     version=version,
     description="A Python script to submit web pages to the Wayback Machine for archiving.",
     long_description=long_description,
     author="Alexander Gude",
     author_email="alex.public.account@gmail.com",
-    url="https://github.com/agude/github-pages-archiver",
+    url="https://github.com/agude/wayback-machine-archiver",
     license="MIT",
     platforms=["any"],
-    packages=find_packages(),
+    packages=["wayback_machine_archiver"],
     entry_points={
         "console_scripts": [
             "archiver=wayback_machine_archiver.archiver:main",

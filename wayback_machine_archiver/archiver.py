@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 
 
 # Library version
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 
 def format_archive_url(url):
