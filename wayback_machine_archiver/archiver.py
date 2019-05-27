@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 
 
 # Library version
-__version__ = "1.1.1"
+__version__ = "1.2.0"
 
 
 def format_archive_url(url):
@@ -61,6 +61,11 @@ def main():
     parser = argparse.ArgumentParser(
         prog="Github Pages Archiver",
         description="A script to backup a web pages with Internet Archive",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="%(prog)s {version}".format(version=__version__),
     )
     parser.add_argument(
         "urls",
