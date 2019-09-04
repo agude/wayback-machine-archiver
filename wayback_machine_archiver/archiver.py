@@ -4,10 +4,11 @@ import multiprocessing as mp
 import re
 import requests
 import xml.etree.ElementTree as ET
+import time
 
 
 # Library version
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 
 def format_archive_url(url):
@@ -19,8 +20,11 @@ def format_archive_url(url):
     return request_url
 
 
-def call_archiver(request_url):
+def call_archiver(request_url, rate_limit_wait):
     """Submit a url to the Internet Archive to archive."""
+    if rate_limit_wait > 0:
+        logging.debug("Sleeping for %s", rate_limit_wait)
+        time.sleep(rate_limit_wait)
     logging.info("Calling archive url %s", request_url)
     r = requests.head(request_url)
 
@@ -105,6 +109,13 @@ def main():
         "-j",
         help="run this many concurrent URL submissions, defaults to 1",
         default=1,
+        type=int,
+    )
+    parser.add_argument(
+        "--rate-limit-wait",
+        help="number of seconds to wait between page requests to avoid flooding the archive site, defaults to 3",
+        dest="rate_limit_in_sec",
+        default=3,
         type=int,
     )
 
