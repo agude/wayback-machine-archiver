@@ -1,14 +1,15 @@
+from functools import partial
 import argparse
 import logging
 import multiprocessing as mp
 import re
 import requests
-import xml.etree.ElementTree as ET
 import time
+import xml.etree.ElementTree as ET
 
 
 # Library version
-__version__ = "1.3.0"
+__version__ = "1.3.1"
 
 
 def format_archive_url(url):
@@ -148,7 +149,8 @@ def main():
     # Archive the URLs
     logging.debug("Archive URLs: %s", archive_urls)
     pool = mp.Pool(processes=args.jobs)
-    pool.map(call_archiver, archive_urls)
+    partial_call = partial(call_archiver, rate_limit_in_sec=args.rate_limit_in_sec)
+    pool.map(partial_call, archive_urls)
     pool.close()
     pool.join()
 
