@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 
 
 # Library version
-__version__ = "1.3.1"
+__version__ = "1.3.2"
 
 
 def format_archive_url(url):
@@ -149,7 +149,7 @@ def main():
     # Archive the URLs
     logging.debug("Archive URLs: %s", archive_urls)
     pool = mp.Pool(processes=args.jobs)
-    partial_call = partial(call_archiver, rate_limit_in_sec=args.rate_limit_in_sec)
+    partial_call = partial(call_archiver, rate_limit_wait=args.rate_limit_in_sec)
     pool.map(partial_call, archive_urls)
     pool.close()
     pool.join()
