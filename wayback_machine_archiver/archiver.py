@@ -1,4 +1,6 @@
 from functools import partial
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import argparse
 import logging
 import multiprocessing as mp
@@ -9,7 +11,7 @@ import xml.etree.ElementTree as ET
 
 
 # Library version
-__version__ = "1.3.2"
+__version__ = "1.4.0"
 
 
 def format_archive_url(url):
@@ -21,13 +23,13 @@ def format_archive_url(url):
     return request_url
 
 
-def call_archiver(request_url, rate_limit_wait):
+def call_archiver(request_url, rate_limit_wait, session):
     """Submit a url to the Internet Archive to archive."""
     if rate_limit_wait > 0:
         logging.debug("Sleeping for %s", rate_limit_wait)
         time.sleep(rate_limit_wait)
     logging.info("Calling archive url %s", request_url)
-    r = requests.head(request_url)
+    r = session.head(request_url)
 
     # Raise `requests.exceptions.HTTPError` if 4XX or 5XX status
     r.raise_for_status()
@@ -39,10 +41,10 @@ def get_namespace(element):
     return match.group(0) if match else ""
 
 
-def download_sitemap(site_map_url):
+def download_sitemap(site_map_url, session):
     """Download the sitemap of the target website."""
     logging.debug("Downloading: %s", site_map_url)
-    r = requests.get(site_map_url)
+    r = session.get(site_map_url)
 
     return r.text.encode("utf-8")
 
@@ -114,9 +116,9 @@ def main():
     )
     parser.add_argument(
         "--rate-limit-wait",
-        help="number of seconds to wait between page requests to avoid flooding the archive site, defaults to 3",
+        help="number of seconds to wait between page requests to avoid flooding the archive site, defaults to 5; also used as the backoff factor for retries",
         dest="rate_limit_in_sec",
-        default=3,
+        default=5,
         type=int,
     )
 
@@ -134,10 +136,22 @@ def main():
         logging.debug("Page URLs to archive: %s", args.urls)
         archive_urls += map(format_archive_url, args.urls)
 
+    # Set up retry and backoff
+    session = requests.Session()
+
+    retries = Retry(
+        total=5,
+        backoff_factor=args.rate_limit_in_sec,
+        status_forcelist=[500, 502, 503, 504],
+    )
+
+    session.mount("https://", HTTPAdapter(max_retries=retries))
+    session.mount("http://", HTTPAdapter(max_retries=retries))
+
     # Download and process the sitemaps
     for sitemap_url in args.sitemaps:
         logging.info("Parsing sitemaps")
-        sitemap_xml = download_sitemap(sitemap_url)
+        sitemap_xml = download_sitemap(sitemap_url, session)
         for url in extract_pages_from_sitemap(sitemap_xml):
             archive_urls.append(format_archive_url(url))
 
@@ -149,7 +163,9 @@ def main():
     # Archive the URLs
     logging.debug("Archive URLs: %s", archive_urls)
     pool = mp.Pool(processes=args.jobs)
-    partial_call = partial(call_archiver, rate_limit_wait=args.rate_limit_in_sec)
+    partial_call = partial(
+        call_archiver, rate_limit_wait=args.rate_limit_in_sec, session=session
+    )
     pool.map(partial_call, archive_urls)
     pool.close()
     pool.join()
