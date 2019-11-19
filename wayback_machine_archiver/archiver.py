@@ -1,6 +1,7 @@
 from functools import partial
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from pathlib import Path
 import argparse
 import logging
 import multiprocessing as mp
@@ -30,9 +31,11 @@ def call_archiver(request_url, rate_limit_wait, session):
         time.sleep(rate_limit_wait)
     logging.info("Calling archive url %s", request_url)
     r = session.head(request_url)
-
-    # Raise `requests.exceptions.HTTPError` if 4XX or 5XX status
-    r.raise_for_status()
+    try:
+        # Raise `requests.exceptions.HTTPError` if 4XX or 5XX status
+        r.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        logging.exception(e)
 
 
 def get_namespace(element):
@@ -79,6 +82,11 @@ def main():
         nargs="*",
         default=[],
         help="the URLs of the pages to archive",
+    )
+    parser.add_argument(
+        "--file",
+        help="path to a file containing urls to save (one url per line)",
+        required=False,
     )
     parser.add_argument(
         "--sitemaps",
@@ -159,6 +167,11 @@ def main():
     if args.archive_sitemap:
         logging.info("Archiving sitemaps")
         archive_urls += map(format_archive_url, args.sitemaps)
+
+    if args.file:
+        logging.info("Reading urls from file")
+        urls_from_file = (u.strip() for u in Path(args.file).open().readlines() if u.strip())
+        archive_urls += map(format_archive_url, urls_from_file)
 
     # Archive the URLs
     logging.debug("Archive URLs: %s", archive_urls)
