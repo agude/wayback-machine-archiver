@@ -109,6 +109,11 @@ def main():
         ],
     )
     parser.add_argument(
+        "--logtofile",
+        help="redirect logs to a file",
+        dest="log_file",
+    )
+    parser.add_argument(
         "--archive-sitemap-also",
         help="also submit the URL of the sitemap to be archived",
         dest="archive_sitemap",
@@ -132,8 +137,11 @@ def main():
 
     args = parser.parse_args()
 
+    if args.log_file:
+        logging.basicConfig(level=args.log_level, filename=args.log_file)    
     # Set the logging level based on the arguments
-    logging.basicConfig(level=args.log_level)
+    else:
+        logging.basicConfig(level=args.log_level)
 
     logging.debug("Arguments: %s", args)
 
