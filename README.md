@@ -69,6 +69,13 @@ You can backup multiple pages by specifying multiple URLs or sitemaps:
 archiver https://radiokeysmusic.com --sitemaps https://charles.uno/sitemap.xml https://alexgude.com/sitemaps.xml
 ```
 
+You can also backup multiple URLs by writing them to a file, one URL per line,
+and passing that file to archiver:
+
+```bash
+archiver https://radiokeysmusic.com --sitemaps https://charles.uno/sitemap.xml https://alexgude.com/sitemaps.xml
+```
+
 Sitemaps often exclude themselves, so you can request that the sitemap itself
 be backed up using the flag `--archive-sitemap-also`:
 
