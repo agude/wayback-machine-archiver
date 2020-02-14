@@ -109,9 +109,10 @@ def main():
         ],
     )
     parser.add_argument(
-        "--logtofile",
+        "--log-to-file",
         help="redirect logs to a file",
         dest="log_file",
+        default=None,
     )
     parser.add_argument(
         "--archive-sitemap-also",
@@ -137,11 +138,11 @@ def main():
 
     args = parser.parse_args()
 
-    if args.log_file:
-        logging.basicConfig(level=args.log_level, filename=args.log_file)    
     # Set the logging level based on the arguments
-    else:
-        logging.basicConfig(level=args.log_level)
+    #
+    # If `filename` is None, the constructor will set up a stream, otherwise it
+    # will use the file specified.
+    logging.basicConfig(level=args.log_level, filename=args.log_file)
 
     logging.debug("Arguments: %s", args)
 
