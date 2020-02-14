@@ -1,7 +1,7 @@
 from functools import partial
+from pathlib import Path
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from pathlib import Path
 import argparse
 import logging
 import multiprocessing as mp
