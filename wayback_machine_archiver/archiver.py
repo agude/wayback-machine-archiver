@@ -1,5 +1,4 @@
 from functools import partial
-from pathlib import Path
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import argparse
@@ -177,9 +176,11 @@ def main():
         logging.info("Archiving sitemaps")
         archive_urls += map(format_archive_url, args.sitemaps)
 
+    # And URLs from file
     if args.file:
-        logging.info("Reading urls from file")
-        urls_from_file = (u.strip() for u in Path(args.file).open().readlines() if u.strip())
+        logging.info("Reading urls from file: %s", args.file)
+        with open(args.file) as file:
+            urls_from_file = (u.strip() for u in file.readlines() if u.strip())
         archive_urls += map(format_archive_url, urls_from_file)
 
     # Archive the URLs
