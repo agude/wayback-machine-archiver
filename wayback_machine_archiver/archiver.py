@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 
 
 # Library version
-__version__ = "1.5.0"
+__version__ = "1.5.1"
 
 
 def format_archive_url(url):
@@ -68,7 +68,7 @@ def extract_pages_from_sitemap(site_map_text):
 def main():
     # Command line parsing
     parser = argparse.ArgumentParser(
-        prog="Github Pages Archiver",
+        prog="Wayback Machine Archiver",
         description="A script to backup a web pages with Internet Archive",
     )
     parser.add_argument(
