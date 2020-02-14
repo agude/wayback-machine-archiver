@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 
 
 # Library version
-__version__ = "1.4.0"
+__version__ = "1.5.0"
 
 
 def format_archive_url(url):
@@ -29,10 +29,12 @@ def call_archiver(request_url, rate_limit_wait, session):
         logging.debug("Sleeping for %s", rate_limit_wait)
         time.sleep(rate_limit_wait)
     logging.info("Calling archive url %s", request_url)
-    r = session.head(request_url)
-
-    # Raise `requests.exceptions.HTTPError` if 4XX or 5XX status
-    r.raise_for_status()
+    r = session.head(request_url, allow_redirects=True)
+    try:
+        # Raise `requests.exceptions.HTTPError` if 4XX or 5XX status
+        r.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        logging.exception(e)
 
 
 def get_namespace(element):
@@ -81,6 +83,11 @@ def main():
         help="the URLs of the pages to archive",
     )
     parser.add_argument(
+        "--file",
+        help="path to a file containing urls to save (one url per line)",
+        required=False,
+    )
+    parser.add_argument(
         "--sitemaps",
         nargs="+",
         default=[],
@@ -99,6 +106,12 @@ def main():
             "ERROR",
             "CRITICAL",
         ],
+    )
+    parser.add_argument(
+        "--log-to-file",
+        help="redirect logs to a file",
+        dest="log_file",
+        default=None,
     )
     parser.add_argument(
         "--archive-sitemap-also",
@@ -125,7 +138,10 @@ def main():
     args = parser.parse_args()
 
     # Set the logging level based on the arguments
-    logging.basicConfig(level=args.log_level)
+    #
+    # If `filename` is None, the constructor will set up a stream, otherwise it
+    # will use the file specified.
+    logging.basicConfig(level=args.log_level, filename=args.log_file)
 
     logging.debug("Arguments: %s", args)
 
@@ -159,6 +175,13 @@ def main():
     if args.archive_sitemap:
         logging.info("Archiving sitemaps")
         archive_urls += map(format_archive_url, args.sitemaps)
+
+    # And URLs from file
+    if args.file:
+        logging.info("Reading urls from file: %s", args.file)
+        with open(args.file) as file:
+            urls_from_file = (u.strip() for u in file.readlines() if u.strip())
+        archive_urls += map(format_archive_url, urls_from_file)
 
     # Archive the URLs
     logging.debug("Archive URLs: %s", archive_urls)
