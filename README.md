@@ -41,7 +41,45 @@ Which, like using `pip`, will give you access to the script by calling
 
 ## Usage
 
-You can schedule a backup by specifying the URL a web page, like so:
+Archiver has a built-in help displayed with `archiver --help`:
+
+```
+usage: Github Pages Archiver [-h] [--version] [--file FILE]
+                             [--sitemaps SITEMAPS [SITEMAPS ...]]
+                             [--log {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
+                             [--log-to-file LOG_FILE] [--archive-sitemap-also]
+                             [--jobs JOBS]
+                             [--rate-limit-wait RATE_LIMIT_IN_SEC]
+                             [urls [urls ...]]
+
+A script to backup a web pages with Internet Archive
+
+positional arguments:
+  urls                  the URLs of the pages to archive
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+  --file FILE           path to a file containing urls to save (one url per
+                        line)
+  --sitemaps SITEMAPS [SITEMAPS ...]
+                        one or more URLs to sitemaps listing pages to archive
+  --log {DEBUG,INFO,WARNING,ERROR,CRITICAL}
+                        set the logging level, defaults to WARNING
+  --log-to-file LOG_FILE
+                        redirect logs to a file
+  --archive-sitemap-also
+                        also submit the URL of the sitemap to be archived
+  --jobs JOBS, -j JOBS  run this many concurrent URL submissions, defaults to
+                        1
+  --rate-limit-wait RATE_LIMIT_IN_SEC
+                        number of seconds to wait between page requests to
+                        avoid flooding the archive site, defaults to 5; also
+                        used as the backoff factor for retries
+```
+
+The simplest way to schedule a backup is by specifying the URL of a web page,
+like so:
 
 ```bash
 archiver https://alexgude.com
@@ -69,11 +107,11 @@ You can backup multiple pages by specifying multiple URLs or sitemaps:
 archiver https://radiokeysmusic.com --sitemaps https://charles.uno/sitemap.xml https://alexgude.com/sitemaps.xml
 ```
 
-You can also backup multiple URLs by writing them to a file, one URL per line,
-and passing that file to archiver:
+You can also backup multiple URLs by writing them to a file (for example,
+`urls.txt`), one URL per line, and passing that file to archiver:
 
 ```bash
-archiver https://radiokeysmusic.com --sitemaps https://charles.uno/sitemap.xml https://alexgude.com/sitemaps.xml
+archiver --file urls.txt
 ```
 
 Sitemaps often exclude themselves, so you can request that the sitemap itself
