@@ -39,6 +39,11 @@ cd wayback-machine-archiver
 Which, like using `pip`, will give you access to the script by calling
 `archiver`.
 
+Archiver requires [the `requests` library][requests] by Kenneth Reitz.
+Archiver supports Python 2.7, and Python 3.4+.
+
+[requests]: https://github.com/kennethreitz/requests
+
 ## Usage
 
 The simplest way to schedule a backup is by specifying the URL of a web page,
@@ -84,10 +89,7 @@ be backed up using the flag `--archive-sitemap-also`:
 archiver --sitemaps https://alexgude.com/sitemaps.xml --archive-sitemap-also
 ```
 
-Archiver requires [the `requests` library][requests] by Kenneth Reitz.
-Archiver supports Python 2.7, and Python 3.4+.
-
-[requests]: https://github.com/kennethreitz/requests
+## Help
 
 For a full list of commandline flags, Archiver has a built-in help displayed
 with `archiver --help`:
