@@ -183,6 +183,9 @@ def main():
             urls_from_file = (u.strip() for u in file.readlines() if u.strip())
         archive_urls += map(format_archive_url, urls_from_file)
 
+    # Deduplicate URLs
+    archive_urls = set(archive_urls)
+
     # Archive the URLs
     logging.debug("Archive URLs: %s", archive_urls)
     pool = mp.Pool(processes=args.jobs)
