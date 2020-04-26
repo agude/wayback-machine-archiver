@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 
 
 # Library version
-__version__ = "1.5.1"
+__version__ = "1.6.0"
 
 
 def format_archive_url(url):
@@ -182,6 +182,9 @@ def main():
         with open(args.file) as file:
             urls_from_file = (u.strip() for u in file.readlines() if u.strip())
         archive_urls += map(format_archive_url, urls_from_file)
+
+    # Deduplicate URLs
+    archive_urls = set(archive_urls)
 
     # Archive the URLs
     logging.debug("Archive URLs: %s", archive_urls)
