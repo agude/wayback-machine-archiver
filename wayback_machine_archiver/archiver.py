@@ -9,7 +9,6 @@ import requests
 import time
 import xml.etree.ElementTree as ET
 
-
 # Library version
 __version__ = "1.6.0"
 
@@ -49,6 +48,22 @@ def download_sitemap(site_map_url, session):
     r = session.get(site_map_url)
 
     return r.text.encode("utf-8")
+
+
+def read_file_or_url(sitemap_url, session):
+    sitemap_url = sitemap_url.lstrip()
+    if sitemap_url.startswith("/"):
+        sitemap_url = "file://%s" % sitemap_url
+    if sitemap_url.lower().startswith("file://"):
+        file_path = sitemap_url[len("file://"):]
+        try:
+            with open(file_path, "rb") as fp:
+                contents = fp.read()
+        except IOError as e:
+            logging.exception(e)
+        return contents
+    else:
+        return download_sitemap(sitemap_url, session)
 
 
 def extract_pages_from_sitemap(site_map_text):
@@ -167,7 +182,7 @@ def main():
     # Download and process the sitemaps
     for sitemap_url in args.sitemaps:
         logging.info("Parsing sitemaps")
-        sitemap_xml = download_sitemap(sitemap_url, session)
+        sitemap_xml = read_file_or_url(sitemap_url, session=session)
         for url in extract_pages_from_sitemap(sitemap_xml):
             archive_urls.append(format_archive_url(url))
 
