@@ -69,6 +69,12 @@ archiver --sitemaps https://alexgude.com/sitemap.xml
 
 This will backup every page listed in the sitemap of my website, [alexgude.com][ag].
 
+You can also pass a sitemap.xml file (requires the `file://` prefix) to the archiver:
+
+```bash
+archiver --sitemaps file://sitemap.xml
+```
+
 You can backup multiple pages by specifying multiple URLs or sitemaps:
 
 ```bash

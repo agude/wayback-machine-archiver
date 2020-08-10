@@ -9,9 +9,8 @@ import requests
 import time
 import xml.etree.ElementTree as ET
 
-
 # Library version
-__version__ = "1.6.0"
+__version__ = "1.7.0"
 
 
 def format_archive_url(url):
@@ -35,6 +34,7 @@ def call_archiver(request_url, rate_limit_wait, session):
         r.raise_for_status()
     except requests.exceptions.HTTPError as e:
         logging.exception(e)
+        raise
 
 
 def get_namespace(element):
@@ -49,6 +49,31 @@ def download_sitemap(site_map_url, session):
     r = session.get(site_map_url)
 
     return r.text.encode("utf-8")
+
+
+def read_file_or_url(sitemap_url, session):
+    """Read sitemap either locally or fallback to downloading."""
+    # Attempt to read local sitemap
+    LOCAL_PREFIX = "file://"
+    sitemap_url = sitemap_url.lstrip()
+    if sitemap_url.startswith("/"):
+        logging.debug("Prepending '%s' to sitemap '%s'", LOCAL_PREFIX, sitemap_url)
+        sitemap_url = "{prefix}{url}".format(prefix=LOCAL_PREFIX, url=sitemap_url)
+    if sitemap_url.lower().startswith(LOCAL_PREFIX):
+        file_path = sitemap_url[len(LOCAL_PREFIX):]
+        try:
+            logging.debug("Opening local file '%s'", file_path)
+            with open(file_path, "rb") as fp:
+                contents = fp.read()
+        except IOError as e:
+            logging.exception(e)
+            raise
+
+        return contents
+
+    # Fallback to downloading sitemap
+    logging.debug("Sitemap '%s' is remote.", sitemap_url)
+    return download_sitemap(sitemap_url, session)
 
 
 def extract_pages_from_sitemap(site_map_text):
@@ -167,7 +192,7 @@ def main():
     # Download and process the sitemaps
     for sitemap_url in args.sitemaps:
         logging.info("Parsing sitemaps")
-        sitemap_xml = download_sitemap(sitemap_url, session)
+        sitemap_xml = read_file_or_url(sitemap_url, session=session)
         for url in extract_pages_from_sitemap(sitemap_xml):
             archive_urls.append(format_archive_url(url))
 
