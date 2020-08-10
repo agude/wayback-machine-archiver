@@ -10,7 +10,7 @@ import time
 import xml.etree.ElementTree as ET
 
 # Library version
-__version__ = "1.7.0"
+__version__ = "1.7.1"
 
 
 def format_archive_url(url):
@@ -116,7 +116,7 @@ def main():
         "--sitemaps",
         nargs="+",
         default=[],
-        help="one or more URLs to sitemaps listing pages to archive",
+        help="one or more URIs to sitemaps listing pages to archive; local paths must be prefixed with 'file://'",
         required=False,
     )
     parser.add_argument(
@@ -199,6 +199,9 @@ def main():
     # Archive the sitemap as well, if requested
     if args.archive_sitemap:
         logging.info("Archiving sitemaps")
+        # This will fail with using local sitemaps:
+        #
+        # https://github.com/agude/wayback-machine-archiver/issues/16
         archive_urls += map(format_archive_url, args.sitemaps)
 
     # And URLs from file
