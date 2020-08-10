@@ -34,6 +34,7 @@ def call_archiver(request_url, rate_limit_wait, session):
         r.raise_for_status()
     except requests.exceptions.HTTPError as e:
         logging.exception(e)
+        raise
 
 
 def get_namespace(element):
@@ -51,19 +52,28 @@ def download_sitemap(site_map_url, session):
 
 
 def read_file_or_url(sitemap_url, session):
+    """Read sitemap either locally or fallback to downloading."""
+    # Attempt to read local sitemap
+    LOCAL_PREFIX = "file://"
     sitemap_url = sitemap_url.lstrip()
     if sitemap_url.startswith("/"):
-        sitemap_url = "file://%s" % sitemap_url
-    if sitemap_url.lower().startswith("file://"):
-        file_path = sitemap_url[len("file://"):]
+        logging.debug("Prepending '%s' to sitemap '%s'", LOCAL_PREFIX, sitemap_url)
+        sitemap_url = "{prefix}{url}".format(prefix=LOCAL_PREFIX, url=sitemap_url)
+    if sitemap_url.lower().startswith(LOCAL_PREFIX):
+        file_path = sitemap_url[len(LOCAL_PREFIX):]
         try:
+            logging.debug("Opening local file '%s'", file_path)
             with open(file_path, "rb") as fp:
                 contents = fp.read()
         except IOError as e:
             logging.exception(e)
+            raise
+
         return contents
-    else:
-        return download_sitemap(sitemap_url, session)
+
+    # Fallback to downloading sitemap
+    logging.debug("Sitemap '%s' is remote.", sitemap_url)
+    return download_sitemap(sitemap_url, session)
 
 
 def extract_pages_from_sitemap(site_map_text):
