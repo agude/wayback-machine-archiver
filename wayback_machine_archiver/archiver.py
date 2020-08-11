@@ -13,6 +13,10 @@ import xml.etree.ElementTree as ET
 __version__ = "1.7.1"
 
 
+# String used to prefix local sitemaps
+LOCAL_PREFIX = "file://"
+
+
 def format_archive_url(url):
     """Given a URL, constructs an Archive URL to submit the archive request."""
     logging.debug("Creating archive URL for %s", url)
@@ -43,37 +47,36 @@ def get_namespace(element):
     return match.group(0) if match else ""
 
 
-def download_sitemap(site_map_url, session):
+def download_remote_sitemap(sitemap_url: str, session) -> str:
     """Download the sitemap of the target website."""
-    logging.debug("Downloading: %s", site_map_url)
-    r = session.get(site_map_url)
+    logging.debug("Downloading: %s", sitemap_url)
+    r = session.get(sitemap_url)
 
     return r.text.encode("utf-8")
 
 
-def read_file_or_url(sitemap_url, session):
-    """Read sitemap either locally or fallback to downloading."""
-    # Attempt to read local sitemap
-    LOCAL_PREFIX = "file://"
-    sitemap_url = sitemap_url.lstrip()
-    if sitemap_url.startswith("/"):
-        logging.debug("Prepending '%s' to sitemap '%s'", LOCAL_PREFIX, sitemap_url)
-        sitemap_url = "{prefix}{url}".format(prefix=LOCAL_PREFIX, url=sitemap_url)
-    if sitemap_url.lower().startswith(LOCAL_PREFIX):
-        file_path = sitemap_url[len(LOCAL_PREFIX):]
-        try:
-            logging.debug("Opening local file '%s'", file_path)
-            with open(file_path, "rb") as fp:
-                contents = fp.read()
-        except IOError as e:
-            logging.exception(e)
-            raise
+def load_local_sitemap(sitemap_filepath: str) -> str:
+    """Load a local sitemap and return it as a string."""
+    logging.debug("Loading local sitemap: %s", sitemap_filepath)
 
-        return contents
+    if sitemap_filepath.startswith(LOCAL_PREFIX):
+        sitemap_filepath = sitemap_filepath[len(LOCAL_PREFIX):]
 
-    # Fallback to downloading sitemap
-    logging.debug("Sitemap '%s' is remote.", sitemap_url)
-    return download_sitemap(sitemap_url, session)
+    # Try to open the file, error on failure
+    try:
+        logging.debug("Opening local file '%s'", sitemap_filepath)
+        with open(sitemap_filepath, "r") as fp:
+            contents = fp.read()
+    except IOError as e:
+        logging.exception(e)
+        raise
+
+    return contents
+
+
+def sitemap_is_local(sitemap_url: str) -> bool:
+    """Returns True if we believe a URI to be local, False otherwise."""
+    return sitemap_url.startswith(LOCAL_PREFIX) or sitemap_url.startswith("/")
 
 
 def extract_pages_from_sitemap(site_map_text):
@@ -116,7 +119,7 @@ def main():
         "--sitemaps",
         nargs="+",
         default=[],
-        help="one or more URIs to sitemaps listing pages to archive; local paths must be prefixed with 'file://'",
+        help="one or more URIs to sitemaps listing pages to archive; local paths must be prefixed with '{f}'".format(f=LOCAL_PREFIX),
         required=False,
     )
     parser.add_argument(
@@ -190,19 +193,30 @@ def main():
     session.mount("http://", HTTPAdapter(max_retries=retries))
 
     # Download and process the sitemaps
+    remote_sitemaps = set()
+    logging.info("Parsing sitemaps")
     for sitemap_url in args.sitemaps:
-        logging.info("Parsing sitemaps")
-        sitemap_xml = read_file_or_url(sitemap_url, session=session)
+
+        # Save the remote ones, incase the user wants us to backthem up
+        if sitemap_is_local(sitemap_url):
+            logging.debug("The sitemap '%s' is local.", sitemap_url)
+            sitemap_xml = load_local_sitemap(sitemap_url)
+        else:
+            logging.debug("The sitemap '%s' is remote.", sitemap_url)
+            if args.archive_sitemap:
+                remote_sitemaps.add(sitemap_url)
+            sitemap_xml = download_remote_sitemap(sitemap_url, session=session)
+
         for url in extract_pages_from_sitemap(sitemap_xml):
             archive_urls.append(format_archive_url(url))
 
     # Archive the sitemap as well, if requested
     if args.archive_sitemap:
         logging.info("Archiving sitemaps")
-        # This will fail with using local sitemaps:
-        #
-        # https://github.com/agude/wayback-machine-archiver/issues/16
-        archive_urls += map(format_archive_url, args.sitemaps)
+        if remote_sitemaps:
+            archive_urls += map(format_archive_url, remote_sitemaps)
+        else:
+            logging.debug("No remote sitemaps to backup.")
 
     # And URLs from file
     if args.file:
