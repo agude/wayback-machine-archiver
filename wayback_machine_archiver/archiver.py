@@ -47,7 +47,7 @@ def get_namespace(element):
     return match.group(0) if match else ""
 
 
-def download_remote_sitemap(sitemap_url: str, session) -> str:
+def download_remote_sitemap(sitemap_url, session):
     """Download the sitemap of the target website."""
     logging.debug("Downloading: %s", sitemap_url)
     r = session.get(sitemap_url)
@@ -55,7 +55,7 @@ def download_remote_sitemap(sitemap_url: str, session) -> str:
     return r.text.encode("utf-8")
 
 
-def load_local_sitemap(sitemap_filepath: str) -> str:
+def load_local_sitemap(sitemap_filepath):
     """Load a local sitemap and return it as a string."""
     logging.debug("Loading local sitemap: %s", sitemap_filepath)
 
@@ -74,7 +74,7 @@ def load_local_sitemap(sitemap_filepath: str) -> str:
     return contents
 
 
-def sitemap_is_local(sitemap_url: str) -> bool:
+def sitemap_is_local(sitemap_url):
     """Returns True if we believe a URI to be local, False otherwise."""
     return sitemap_url.startswith(LOCAL_PREFIX) or sitemap_url.startswith("/")
 
