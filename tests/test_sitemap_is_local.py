@@ -1,10 +1,10 @@
-from wayback_machine_archiver.archiver import sitemap_is_local
+from wayback_machine_archiver.archiver import sitemap_is_local, LOCAL_PREFIX
 
 
 def test_local():
     URIS = (
         "/tmp/sitemap.xml",
-        "file:///tmp/sitemap.xml",
+        "{prefix}/tmp/sitemap.xml".format(prefix=LOCAL_PREFIX),
     )
     for uri in URIS:
         assert sitemap_is_local(uri)
