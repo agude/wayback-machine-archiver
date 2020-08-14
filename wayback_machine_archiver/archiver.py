@@ -51,8 +51,14 @@ def download_remote_sitemap(sitemap_url, session):
     """Download the sitemap of the target website."""
     logging.debug("Downloading: %s", sitemap_url)
     r = session.get(sitemap_url)
-
-    return r.text.encode("utf-8")
+    try:
+        # Raise `requests.exceptions.HTTPError` if 4XX or 5XX status
+        r.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        logging.exception(e)
+        raise
+    else:
+        return r.text.encode("utf-8")
 
 
 def load_local_sitemap(sitemap_filepath):
