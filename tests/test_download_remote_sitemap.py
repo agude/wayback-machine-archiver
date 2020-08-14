@@ -1,7 +1,6 @@
 import pytest
 from wayback_machine_archiver.archiver import download_remote_sitemap
 from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 import requests
 
 
