@@ -57,6 +57,9 @@ setup(
         "pypandoc",
         "pytest-runner",
     ],
-    tests_require=["pytest"],
+    tests_require=[
+        "pytest",
+        "requests-mock",
+    ],
     python_requires=">=2.6, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, <4",
 )
