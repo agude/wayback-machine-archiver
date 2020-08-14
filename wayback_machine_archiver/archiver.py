@@ -10,7 +10,7 @@ import time
 import xml.etree.ElementTree as ET
 
 # Library version
-__version__ = "1.7.3"
+__version__ = "1.8.0"
 
 
 # String used to prefix local sitemaps
