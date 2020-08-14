@@ -10,7 +10,7 @@ import time
 import xml.etree.ElementTree as ET
 
 # Library version
-__version__ = "1.8.0"
+__version__ = "1.8.1"
 
 
 # String used to prefix local sitemaps
@@ -102,7 +102,7 @@ def extract_pages_from_sitemap(site_map_text):
 def main():
     # Command line parsing
     parser = argparse.ArgumentParser(
-        prog="Wayback Machine Archiver",
+        prog="archiver",
         description="A script to backup a web pages with Internet Archive",
     )
     parser.add_argument(

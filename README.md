@@ -101,13 +101,12 @@ For a full list of commandline flags, Archiver has a built-in help displayed
 with `archiver --help`:
 
 ```
-usage: Github Pages Archiver [-h] [--version] [--file FILE]
-                             [--sitemaps SITEMAPS [SITEMAPS ...]]
-                             [--log {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
-                             [--log-to-file LOG_FILE] [--archive-sitemap-also]
-                             [--jobs JOBS]
-                             [--rate-limit-wait RATE_LIMIT_IN_SEC]
-                             [urls [urls ...]]
+usage: archiver [-h] [--version] [--file FILE]
+                [--sitemaps SITEMAPS [SITEMAPS ...]]
+                [--log {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
+                [--log-to-file LOG_FILE] [--archive-sitemap-also]
+                [--jobs JOBS] [--rate-limit-wait RATE_LIMIT_IN_SEC]
+                [urls [urls ...]]
 
 A script to backup a web pages with Internet Archive
 
@@ -120,7 +119,8 @@ optional arguments:
   --file FILE           path to a file containing urls to save (one url per
                         line)
   --sitemaps SITEMAPS [SITEMAPS ...]
-                        one or more URLs to sitemaps listing pages to archive
+                        one or more URIs to sitemaps listing pages to archive;
+                        local paths must be prefixed with 'file://'
   --log {DEBUG,INFO,WARNING,ERROR,CRITICAL}
                         set the logging level, defaults to WARNING
   --log-to-file LOG_FILE
