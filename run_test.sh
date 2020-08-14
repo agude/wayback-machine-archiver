@@ -1,3 +1,3 @@
 #!/bin/bash
 
-python -m pytest -v
+python -m pytest -vv
