@@ -189,6 +189,7 @@ def main():
 
     # Set up retry and backoff
     session = requests.Session()
+    session.max_redirects = 100  # Changed number of redirects allowed from 30
 
     retries = Retry(
         total=5,
