@@ -177,6 +177,7 @@ def main():
     # will use the file specified.
     logging.basicConfig(level=args.log_level, filename=args.log_file)
 
+    logging.debug("Archiver Version: %s", __version__)
     logging.debug("Arguments: %s", args)
 
     archive_urls = []
