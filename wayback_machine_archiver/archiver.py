@@ -10,7 +10,7 @@ import time
 import xml.etree.ElementTree as ET
 
 # Library version
-__version__ = "1.8.1"
+__version__ = "1.9.0"
 
 
 # String used to prefix local sitemaps
@@ -177,6 +177,7 @@ def main():
     # will use the file specified.
     logging.basicConfig(level=args.log_level, filename=args.log_file)
 
+    logging.debug("Archiver Version: %s", __version__)
     logging.debug("Arguments: %s", args)
 
     archive_urls = []
@@ -192,7 +193,7 @@ def main():
     retries = Retry(
         total=5,
         backoff_factor=args.rate_limit_in_sec,
-        status_forcelist=[500, 502, 503, 504],
+        status_forcelist=[500, 502, 503, 504, 520],
     )
 
     session.mount("https://", HTTPAdapter(max_retries=retries))
