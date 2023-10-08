@@ -6,17 +6,25 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      max-parallel: 4
       matrix:
-        python-version: ['3.6', '3.7', '3.8', '3.9', 'pypy3']
+        python-version: 
+        - '3.8'
+        - '3.9'
+        - '3.10'
+        - '3.11'
+        - '3.12'
+        - 'pypy-3.9'
+        - 'pypy-3.10'
     name: Python ${{ matrix.python-version }} Test 🧪
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Dump GitHub context
       env:
         GITHUB_CONTEXT: ${{ toJson(github) }}
       run: echo "$GITHUB_CONTEXT"
     - name: Set up Python ${{ matrix.python-version }} 🐍
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies 🏗
@@ -29,7 +37,7 @@ jobs:
     - name: Run Unit and Intergration Tests 🧪
       run: |
         pip install pytest
-        python -m pytest -v
+        python -m pytest -vv
     - name: Run Install and Smoke Test ⚗️
       run: |
         pip install .
