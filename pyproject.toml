@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wayback-machine-archiver"
+version = "1.9.1"
+description = "A Python script to submit web pages to the Wayback Machine for archiving."
+readme = "README.md"
+authors = [
+    { name = "Alexander Gude", email = "alex.public.account@gmail.com" },
+]
+license = { file = "LICENSE" }
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Topic :: Utilities",
+]
+keywords = ["Internet Archive", "Wayback Machine"]
+dependencies = [
+    "requests",
+    "urllib3",
+]
+
+[project.urls]
+Homepage = "https://github.com/agude/wayback-machine-archiver"
+
+[project.scripts]
+archiver = "wayback_machine_archiver.archiver:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "requests-mock",
+    "bump-my-version",
+]
+
+[tool.bumpversion]
+current_version = "1.9.1"
+commit = true
+tag = true
+message = "Bump version to {new_version}"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "src/wayback_machine_archiver/archiver.py"
+search = '__version__ = "{current_version}"'
+replace = '__version__ = "{new_version}"'

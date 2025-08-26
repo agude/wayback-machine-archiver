@@ -6,9 +6,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
-      max-parallel: 4
+      fail-fast: false
       matrix:
-        python-version: 
+        python-version:
         - '3.8'
         - '3.9'
         - '3.10'
@@ -18,27 +18,24 @@ jobs:
         - 'pypy-3.10'
     name: Python ${{ matrix.python-version }} Test 🧪
     steps:
-    - uses: actions/checkout@v4
-    - name: Dump GitHub context
-      env:
-        GITHUB_CONTEXT: ${{ toJson(github) }}
-      run: echo "$GITHUB_CONTEXT"
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
     - name: Set up Python ${{ matrix.python-version }} 🐍
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
+
+    - name: Set up uv 💨
+      uses: astral-sh/setup-uv@v6
+      with:
+        uv-version: latest
+
     - name: Install dependencies 🏗
-      run: >-
-        python -m pip install --upgrade
-        pip
-        setuptools
-        wheel
-        && pip install -r requirements.txt
-    - name: Run Unit and Intergration Tests 🧪
-      run: |
-        pip install pytest
-        python -m pytest -vv
-    - name: Run Install and Smoke Test ⚗️
-      run: |
-        pip install .
-        archiver --help
+      run: uv pip install --system -e ".[dev]"
+
+    - name: Run Tests 🧪
+      run: pytest -vv
+
+    - name: Run Smoke Test ⚗️
+      run: archiver --help
