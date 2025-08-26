@@ -38,4 +38,21 @@ archiver = "wayback_machine_archiver.archiver:main"
 dev = [
     "pytest",
     "requests-mock",
+    "bump-my-version",
 ]
+
+[tool.bumpversion]
+current_version = "1.9.1"
+commit = true
+tag = true
+message = "Bump version to {new_version}"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "src/wayback_machine_archiver/archiver.py"
+search = '__version__ = "{current_version}"'
+replace = '__version__ = "{new_version}"'
