@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayback-machine-archiver"
-version = "1.9.1"
+version = "1.9.2"
 description = "A Python script to submit web pages to the Wayback Machine for archiving."
 readme = "README.md"
 authors = [
@@ -42,7 +42,7 @@ dev = [
 ]
 
 [tool.bumpversion]
-current_version = "1.9.1"
+current_version = "1.9.2"
 commit = true
 tag = true
 message = "Bump version to {new_version}"
