@@ -4,6 +4,7 @@ from urllib3.util.retry import Retry
 import argparse
 import logging
 import multiprocessing as mp
+import random
 import re
 import requests
 import time
@@ -168,6 +169,13 @@ def main():
         default=5,
         type=int,
     )
+    parser.add_argument(
+        "--random-order",
+        help="randomize the order of pages before archiving",
+        dest="random_order",
+        default=False,
+        action="store_true",
+    )
 
     args = parser.parse_args()
 
@@ -233,16 +241,21 @@ def main():
             urls_from_file = (u.strip() for u in file.readlines() if u.strip())
         archive_urls += map(format_archive_url, urls_from_file)
 
-    # Deduplicate URLs
-    archive_urls = set(archive_urls)
+    # Deduplicate URLs and convert to a list
+    archive_urls_list = list(set(archive_urls))
+
+    # Randomize the order if requested
+    if args.random_order:
+        logging.info("Randomizing the order of URLs.")
+        random.shuffle(archive_urls_list)
 
     # Archive the URLs
-    logging.debug("Archive URLs: %s", archive_urls)
+    logging.debug("Archive URLs: %s", archive_urls_list)
     pool = mp.Pool(processes=args.jobs)
     partial_call = partial(
         call_archiver, rate_limit_wait=args.rate_limit_in_sec, session=session
     )
-    pool.map(partial_call, archive_urls)
+    pool.map(partial_call, archive_urls_list)
     pool.close()
     pool.join()
 
