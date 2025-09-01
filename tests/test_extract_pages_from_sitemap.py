@@ -17,10 +17,12 @@ def test_ascii_sitemap():
         </urlset>
     """.encode("UTF-8")
 
-    URLS = set((
-        "https://alexgude.com/blog/double-checking-538/",
-        "https://alexgude.com/files/undergrad_thesis.pdf",
-    ))
+    URLS = set(
+        (
+            "https://alexgude.com/blog/double-checking-538/",
+            "https://alexgude.com/files/undergrad_thesis.pdf",
+        )
+    )
 
     assert extract_pages_from_sitemap(SITEMAP) == URLS
 
@@ -53,9 +55,11 @@ def test_unicode_sitemap():
         </urlset>
     """.encode("UTF-8")
 
-    URLS = set((
-        "https://www.radiokeysmusic.com/home",
-        "https://www.radiokeysmusic.com/about",
-    ))
+    URLS = set(
+        (
+            "https://www.radiokeysmusic.com/home",
+            "https://www.radiokeysmusic.com/about",
+        )
+    )
 
     assert extract_pages_from_sitemap(SITEMAP) == URLS

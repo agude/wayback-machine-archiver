@@ -67,7 +67,7 @@ def load_local_sitemap(sitemap_filepath):
     logging.debug("Loading local sitemap: %s", sitemap_filepath)
 
     if sitemap_filepath.startswith(LOCAL_PREFIX):
-        sitemap_filepath = sitemap_filepath[len(LOCAL_PREFIX):]
+        sitemap_filepath = sitemap_filepath[len(LOCAL_PREFIX) :]
 
     # Try to open the file, error on failure
     try:
@@ -87,7 +87,7 @@ def sitemap_is_local(sitemap_url):
 
 
 def extract_pages_from_sitemap(site_map_text):
-    """Extract the various pages from the sitemap text. """
+    """Extract the various pages from the sitemap text."""
     root = ET.fromstring(site_map_text)
 
     # Sitemaps use a namespace in the XML, which we need to read
@@ -126,7 +126,9 @@ def main():
         "--sitemaps",
         nargs="+",
         default=[],
-        help="one or more URIs to sitemaps listing pages to archive; local paths must be prefixed with '{f}'".format(f=LOCAL_PREFIX),
+        help="one or more URIs to sitemaps listing pages to archive; local paths must be prefixed with '{f}'".format(
+            f=LOCAL_PREFIX
+        ),
         required=False,
     )
     parser.add_argument(
@@ -212,7 +214,6 @@ def main():
     remote_sitemaps = set()
     logging.info("Parsing sitemaps")
     for sitemap_url in args.sitemaps:
-
         # Save the remote ones, incase the user wants us to backthem up
         if sitemap_is_local(sitemap_url):
             logging.debug("The sitemap '%s' is local.", sitemap_url)

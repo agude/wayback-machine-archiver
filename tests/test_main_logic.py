@@ -3,17 +3,18 @@ from unittest import mock
 
 from wayback_machine_archiver.archiver import main, format_archive_url
 
+
 # We patch the Pool and shuffle functions to isolate our test
 # to the logic inside main(), without creating real processes or shuffling.
-@mock.patch('wayback_machine_archiver.archiver.mp.Pool')
-@mock.patch('wayback_machine_archiver.archiver.random.shuffle')
+@mock.patch("wayback_machine_archiver.archiver.mp.Pool")
+@mock.patch("wayback_machine_archiver.archiver.random.shuffle")
 def test_random_order_flag_shuffles_urls(mock_shuffle, mock_pool):
     """
     Verify that when --random-order is passed, random.shuffle is called.
     """
     # Arrange: Simulate command-line arguments
-    urls_to_archive = ['http://test.com/a', 'http://test.com/b']
-    sys.argv = ['archiver', '--random-order'] + urls_to_archive
+    urls_to_archive = ["http://test.com/a", "http://test.com/b"]
+    sys.argv = ["archiver", "--random-order"] + urls_to_archive
 
     # We need to get a reference to the mock Pool instance to check its methods
     mock_pool_instance = mock_pool.return_value
@@ -34,15 +35,15 @@ def test_random_order_flag_shuffles_urls(mock_shuffle, mock_pool):
     assert set(url_list_passed_to_pool) == expected_urls
 
 
-@mock.patch('wayback_machine_archiver.archiver.mp.Pool')
-@mock.patch('wayback_machine_archiver.archiver.random.shuffle')
+@mock.patch("wayback_machine_archiver.archiver.mp.Pool")
+@mock.patch("wayback_machine_archiver.archiver.random.shuffle")
 def test_default_order_does_not_shuffle(mock_shuffle, mock_pool):
     """
     Verify that without the --random-order flag, random.shuffle is NOT called.
     """
     # Arrange: Simulate command-line arguments without the flag
-    urls_to_archive = ['http://test.com/a', 'http://test.com/b']
-    sys.argv = ['archiver'] + urls_to_archive
+    urls_to_archive = ["http://test.com/a", "http://test.com/b"]
+    sys.argv = ["archiver"] + urls_to_archive
 
     mock_pool_instance = mock_pool.return_value
 

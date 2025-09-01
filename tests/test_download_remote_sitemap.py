@@ -27,14 +27,14 @@ def session():
 
 
 def test_download_remote_sitemap(requests_mock, session):
-    url = 'https://www.radiokeysmusic.com/sitemap.xml'
+    url = "https://www.radiokeysmusic.com/sitemap.xml"
     requests_mock.get(url, text=SITEMAP)
     returned_contents = download_remote_sitemap(url, session)
     assert returned_contents == SITEMAP.encode("UTF-8")
 
 
 def test_download_remote_sitemap_with_status_error(requests_mock, session):
-    url = 'https://www.radiokeysmusic.com/sitemap.xml'
+    url = "https://www.radiokeysmusic.com/sitemap.xml"
     requests_mock.get(url, text=SITEMAP, status_code=404)
     with pytest.raises(requests.exceptions.HTTPError):
         download_remote_sitemap(url, session)
