@@ -9,7 +9,7 @@ import re
 import requests
 import time
 import xml.etree.ElementTree as ET
-from .clients import call_archiver
+from .clients import ArchiveClient
 
 # Library version
 __version__ = "1.10.0"
@@ -238,10 +238,10 @@ def main():
 
     # Archive the URLs
     logging.debug("Archive URLs: %s", archive_urls_list)
+
+    client = ArchiveClient(session=session)
     pool = mp.Pool(processes=args.jobs)
-    partial_call = partial(
-        call_archiver, rate_limit_wait=args.rate_limit_in_sec, session=session
-    )
+    partial_call = partial(client.archive, rate_limit_wait=args.rate_limit_in_sec)
     pool.map(partial_call, archive_urls_list)
     pool.close()
     pool.join()
