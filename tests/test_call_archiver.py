@@ -1,5 +1,5 @@
 import pytest
-from wayback_machine_archiver.archiver import call_archiver
+from wayback_machine_archiver.clients import call_archiver
 from requests.adapters import HTTPAdapter
 import requests
 
