@@ -2,6 +2,7 @@ import pytest
 from wayback_machine_archiver.clients import SPN2Client
 from requests.adapters import HTTPAdapter
 import requests
+import urllib.parse
 
 
 @pytest.fixture
@@ -37,4 +38,6 @@ def test_spn2_client_submit_capture(requests_mock, session):
     assert request.method == "POST"
     assert request.url == SPN2Client.SAVE_URL
     assert f"LOW {access_key}:{secret_key}" == request.headers["Authorization"]
-    assert f"url={url_to_archive}" == request.text
+
+    expected_body = urllib.parse.urlencode({"url": url_to_archive})
+    assert expected_body == request.text
