@@ -123,21 +123,20 @@ positional arguments:
 options:
   -h, --help            show this help message and exit
   --version             show program's version number and exit
-  --file FILE           path to a file containing urls to save (one url per
-                        line)
+  --file FILE           path to a file containing urls to save (one url per line)
   --sitemaps SITEMAPS [SITEMAPS ...]
-                        one or more URIs to sitemaps listing pages to
-                        archive; local paths must be prefixed with 'file://'
+                        one or more URIs to sitemaps listing pages to archive;
+                        local paths must be prefixed with 'file://'
   --log {DEBUG,INFO,WARNING,ERROR,CRITICAL}
                         set the logging level, defaults to WARNING
+                        (case-insensitive)
   --log-to-file LOG_FILE
                         redirect logs to a file
   --archive-sitemap-also
                         also submit the URL of the sitemap to be archived
   --rate-limit-wait RATE_LIMIT_IN_SEC
                         number of seconds to wait between page requests to
-                        avoid flooding the archive site, defaults to 5; also
-                        used as the backoff factor for retries
+                        avoid flooding the archive site, defaults to 15
   --random-order        randomize the order of pages before archiving
 ```
 
