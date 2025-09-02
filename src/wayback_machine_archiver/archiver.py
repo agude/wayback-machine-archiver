@@ -119,9 +119,10 @@ def main():
     )
     parser.add_argument(
         "--log",
-        help="set the logging level, defaults to WARNING",
+        help="set the logging level, defaults to WARNING (case-insensitive)",
         dest="log_level",
         default=logging.WARNING,
+        type=str.upper,
         choices=[
             "DEBUG",
             "INFO",
@@ -145,9 +146,9 @@ def main():
     )
     parser.add_argument(
         "--rate-limit-wait",
-        help="number of seconds to wait between page requests to avoid flooding the archive site, defaults to 5; also used as the backoff factor for retries",
+        help="number of seconds to wait between page requests to avoid flooding the archive site, defaults to 15",
         dest="rate_limit_in_sec",
-        default=5,
+        default=15,
         type=int,
     )
     parser.add_argument(
@@ -170,6 +171,28 @@ def main():
     access_key = os.getenv("INTERNET_ARCHIVE_ACCESS_KEY")
     secret_key = os.getenv("INTERNET_ARCHIVE_SECRET_KEY")
     use_spn2 = access_key and secret_key
+
+    # Enforce API minimums for both modes
+    if use_spn2:
+        MIN_SPN2_WAIT_SEC = 5
+        if args.rate_limit_in_sec < MIN_SPN2_WAIT_SEC:
+            logging.warning(
+                "Provided rate limit of %d seconds is below the API minimum of %d for authenticated users. Overriding to %d seconds to avoid rate-limiting.",
+                args.rate_limit_in_sec,
+                MIN_SPN2_WAIT_SEC,
+                MIN_SPN2_WAIT_SEC,
+            )
+            args.rate_limit_in_sec = MIN_SPN2_WAIT_SEC
+    else:
+        MIN_LEGACY_WAIT_SEC = 15
+        if args.rate_limit_in_sec < MIN_LEGACY_WAIT_SEC:
+            logging.warning(
+                "Provided rate limit of %d seconds is below the API minimum of %d for unauthenticated users. Overriding to %d seconds to avoid rate-limiting.",
+                args.rate_limit_in_sec,
+                MIN_LEGACY_WAIT_SEC,
+                MIN_LEGACY_WAIT_SEC,
+            )
+            args.rate_limit_in_sec = MIN_LEGACY_WAIT_SEC
 
     logging.debug("Archiver Version: %s", __version__)
     logging.debug("Arguments: %s", args)
@@ -247,7 +270,9 @@ def main():
         job_ids = []
         for url in urls_to_archive_list:
             try:
-                job_id = client.submit_capture(url)
+                job_id = client.submit_capture(
+                    url, rate_limit_wait=args.rate_limit_in_sec
+                )
                 if job_id:
                     job_ids.append(job_id)
             except Exception as e:
@@ -287,8 +312,8 @@ def main():
                     )
                     pending_job_ids.remove(job_id)  # Stop checking this job
 
-            if pending_job_ids:
-                time.sleep(5)  # Wait before the next polling cycle
+                if pending_job_ids:
+                    time.sleep(1)  # Wait 1 second between each status check
 
         logging.info("All captures complete.")
 
