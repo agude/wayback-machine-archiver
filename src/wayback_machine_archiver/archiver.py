@@ -119,9 +119,10 @@ def main():
     )
     parser.add_argument(
         "--log",
-        help="set the logging level, defaults to WARNING",
+        help="set the logging level, defaults to WARNING (case-insensitive)",
         dest="log_level",
         default=logging.WARNING,
+        type=str.upper,
         choices=[
             "DEBUG",
             "INFO",
@@ -145,7 +146,7 @@ def main():
     )
     parser.add_argument(
         "--rate-limit-wait",
-        help="number of seconds to wait between page requests to avoid flooding the archive site, defaults to 5; also used as the backoff factor for retries",
+        help="number of seconds to wait between page requests to avoid flooding the archive site, defaults to 15",
         dest="rate_limit_in_sec",
         default=15,
         type=int,
@@ -171,6 +172,7 @@ def main():
     secret_key = os.getenv("INTERNET_ARCHIVE_SECRET_KEY")
     use_spn2 = access_key and secret_key
 
+    # Enforce API minimums for both modes
     if use_spn2:
         MIN_SPN2_WAIT_SEC = 5
         if args.rate_limit_in_sec < MIN_SPN2_WAIT_SEC:
