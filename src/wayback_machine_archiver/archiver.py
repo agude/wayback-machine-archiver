@@ -1,13 +1,13 @@
-from functools import partial
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import argparse
 import logging
+import os
 import random
 import re
 import requests
+import time
 import xml.etree.ElementTree as ET
-import os
 from dotenv import load_dotenv
 from .clients import LegacyClient, SPN2Client
 
