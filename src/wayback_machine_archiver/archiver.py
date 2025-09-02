@@ -182,12 +182,12 @@ def main():
     logging.debug("Archiver Version: %s", __version__)
     logging.debug("Arguments: %s", args)
 
-    archive_urls = []
+    urls_to_archive = []
     # Add the regular pages
     if args.urls:
         logging.info("Adding page URLs to archive")
         logging.debug("Page URLs to archive: %s", args.urls)
-        archive_urls += map(format_archive_url, args.urls)
+        urls_to_archive.extend(args.urls)
 
     # Set up retry and backoff
     session = requests.Session()
@@ -216,14 +216,13 @@ def main():
                 remote_sitemaps.add(sitemap_url)
             sitemap_xml = download_remote_sitemap(sitemap_url, session=session)
 
-        for url in extract_pages_from_sitemap(sitemap_xml):
-            archive_urls.append(format_archive_url(url))
+        urls_to_archive.extend(extract_pages_from_sitemap(sitemap_xml))
 
     # Archive the sitemap as well, if requested
     if args.archive_sitemap:
         logging.info("Archiving sitemaps")
         if remote_sitemaps:
-            archive_urls += map(format_archive_url, remote_sitemaps)
+            urls_to_archive.extend(remote_sitemaps)
         else:
             logging.debug("No remote sitemaps to backup.")
 
@@ -232,31 +231,41 @@ def main():
         logging.info("Reading urls from file: %s", args.file)
         with open(args.file) as file:
             urls_from_file = (u.strip() for u in file.readlines() if u.strip())
-        archive_urls += map(format_archive_url, urls_from_file)
+            urls_to_archive.extend(urls_from_file)
 
     # Deduplicate URLs and convert to a list
-    archive_urls_list = list(set(archive_urls))
+    urls_to_archive_list = list(set(urls_to_archive))
 
     # Randomize the order if requested
     if args.random_order:
         logging.info("Randomizing the order of URLs.")
-        random.shuffle(archive_urls_list)
+        random.shuffle(urls_to_archive_list)
 
     # Archive the URLs
-    logging.debug("Archive URLs: %s", archive_urls_list)
+    logging.debug("Archive URLs: %s", urls_to_archive_list)
 
     if use_spn2:
         logging.info("SPN2 credentials found. Using authenticated API.")
-        client = SPN2Client(session=session)
+        client = SPN2Client(
+            session=session, access_key=access_key, secret_key=secret_key
+        )
+        pool = mp.Pool(processes=args.jobs)
+        # For SPN2, we call submit_capture with the raw URL
+        job_ids = pool.map(client.submit_capture, urls_to_archive_list)
+        pool.close()
+        pool.join()
+        logging.info("All URLs submitted. Received Job IDs: %s", job_ids)
+        logging.warning("SPN2 capture status polling is not yet implemented.")
     else:
         logging.warning("No SPN2 credentials found. Using public, unauthenticated API.")
         client = LegacyClient(session=session)
-
-    pool = mp.Pool(processes=args.jobs)
-    partial_call = partial(client.archive, rate_limit_wait=args.rate_limit_in_sec)
-    pool.map(partial_call, archive_urls_list)
-    pool.close()
-    pool.join()
+        # For legacy, we must format the URL first
+        archive_urls_list = list(map(format_archive_url, urls_to_archive_list))
+        pool = mp.Pool(processes=args.jobs)
+        partial_call = partial(client.archive, rate_limit_wait=args.rate_limit_in_sec)
+        pool.map(partial_call, archive_urls_list)
+        pool.close()
+        pool.join()
 
 
 if __name__ == "__main__":
