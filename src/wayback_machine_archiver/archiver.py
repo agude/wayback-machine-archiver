@@ -249,13 +249,54 @@ def main():
         client = SPN2Client(
             session=session, access_key=access_key, secret_key=secret_key
         )
+
+        # Phase 1: Submit all jobs in parallel
+        logging.info("Submitting %d URLs to the SPN2 API...", len(urls_to_archive_list))
         pool = mp.Pool(processes=args.jobs)
         # For SPN2, we call submit_capture with the raw URL
         job_ids = pool.map(client.submit_capture, urls_to_archive_list)
         pool.close()
         pool.join()
-        logging.info("All URLs submitted. Received Job IDs: %s", job_ids)
-        logging.warning("SPN2 capture status polling is not yet implemented.")
+
+        # Filter out any submissions that failed (returned None or empty)
+        pending_job_ids = [job_id for job_id in job_ids if job_id]
+        logging.info("All URLs submitted. Now polling for capture status...")
+
+        # Phase 2: Poll for status in a single thread
+        while pending_job_ids:
+            logging.info("%d captures remaining...", len(pending_job_ids))
+            # Use a copy of the list to allow removing items during iteration
+            for job_id in list(pending_job_ids):
+                try:
+                    status_data = client.check_status(job_id)
+                    status = status_data.get("status")
+
+                    if status == "success":
+                        original_url = status_data.get("original_url")
+                        timestamp = status_data.get("timestamp")
+                        archive_url = (
+                            f"https://web.archive.org/web/{timestamp}/{original_url}"
+                        )
+                        logging.info("Success for job %s: %s", job_id, archive_url)
+                        pending_job_ids.remove(job_id)
+                    elif status == "error":
+                        message = status_data.get("message", "Unknown error")
+                        logging.error("Error for job %s: %s", job_id, message)
+                        pending_job_ids.remove(job_id)
+                    else:  # status == "pending" or unknown
+                        logging.debug("Job %s is pending...", job_id)
+
+                except Exception as e:
+                    logging.error(
+                        "An exception occurred while checking job %s: %s", job_id, e
+                    )
+                    pending_job_ids.remove(job_id)  # Stop checking this job
+
+            if pending_job_ids:
+                time.sleep(5)  # Wait before the next polling cycle
+
+        logging.info("All captures complete.")
+
     else:
         logging.warning("No SPN2 credentials found. Using public, unauthenticated API.")
         client = LegacyClient(session=session)

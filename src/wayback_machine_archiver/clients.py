@@ -28,6 +28,7 @@ class SPN2Client:
     """Handles archiving using the authenticated SPN2 API."""
 
     SAVE_URL = "https://web.archive.org/save"
+    STATUS_URL_TEMPLATE = "https://web.archive.org/save/status/{job_id}"
 
     def __init__(self, session, access_key, secret_key):
         self.session = session
@@ -57,6 +58,25 @@ class SPN2Client:
             return job_id
         except requests.exceptions.HTTPError as e:
             logging.error("HTTP Error submitting URL %s: %s", url_to_archive, e)
+            logging.error("Response content: %s", e.response.text)
+            raise
+        except Exception as e:
+            logging.exception(e)
+            raise
+
+    def check_status(self, job_id):
+        """
+        Checks the status of a capture job.
+        Returns the JSON response from the status API.
+        """
+        status_url = self.STATUS_URL_TEMPLATE.format(job_id=job_id)
+        logging.debug("Checking status for job_id: %s", job_id)
+        try:
+            r = self.session.get(status_url)
+            r.raise_for_status()
+            return r.json()
+        except requests.exceptions.HTTPError as e:
+            logging.error("HTTP Error checking status for job %s: %s", job_id, e)
             logging.error("Response content: %s", e.response.text)
             raise
         except Exception as e:

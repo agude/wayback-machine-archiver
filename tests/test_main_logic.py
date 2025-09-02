@@ -8,7 +8,8 @@ from wayback_machine_archiver.archiver import main, format_archive_url
 # to the logic inside main(), without creating real processes or shuffling.
 @mock.patch("wayback_machine_archiver.archiver.mp.Pool")
 @mock.patch("wayback_machine_archiver.archiver.random.shuffle")
-def test_random_order_flag_shuffles_urls(mock_shuffle, mock_pool):
+@mock.patch("wayback_machine_archiver.archiver.os.getenv", return_value=None)
+def test_random_order_flag_shuffles_urls(mock_getenv, mock_shuffle, mock_pool):
     """
     Verify that when --random-order is passed, random.shuffle is called.
     """
@@ -37,7 +38,8 @@ def test_random_order_flag_shuffles_urls(mock_shuffle, mock_pool):
 
 @mock.patch("wayback_machine_archiver.archiver.mp.Pool")
 @mock.patch("wayback_machine_archiver.archiver.random.shuffle")
-def test_default_order_does_not_shuffle(mock_shuffle, mock_pool):
+@mock.patch("wayback_machine_archiver.archiver.os.getenv", return_value=None)
+def test_default_order_does_not_shuffle(mock_getenv, mock_shuffle, mock_pool):
     """
     Verify that without the --random-order flag, random.shuffle is NOT called.
     """
