@@ -1,7 +1,7 @@
 # Wayback Machine Archiver
 
-Wayback Machine Archiver (Archiver for short) is a commandline utility writen
-in Python to backup Github Pages using the [Internet Archive][ia].
+Wayback Machine Archiver (Archiver for short) is a command-line utility
+written in Python to back up web pages using the [Internet Archive][ia].
 
 [ia]: https://archive.org/
 
@@ -19,93 +19,99 @@ This will give you access to the script simply by calling:
 archiver --help
 ```
 
-You can also clone this repository:
+You can also install it directly from a local clone of this repository:
 
 ```bash
 git clone https://github.com/agude/wayback-machine-archiver.git
 cd wayback-machine-archiver
-python ./wayback_machine_archiver/archiver.py --help
+pip install .
 ```
 
-If you clone the repository, Archiver can be installed as a local application
-using the `setup.py` script:
-
-```bash
-git clone https://github.com/agude/wayback-machine-archiver.git
-cd wayback-machine-archiver
-./setup.py install
-```
-
-Which, like using `pip`, will give you access to the script by calling
-`archiver`.
-
-Archiver requires [the `requests` library][requests] by Kenneth Reitz.
-Archiver supports Python 2.7, and Python 3.4+.
-
-[requests]: https://github.com/kennethreitz/requests
+All dependencies are handled automatically. Archiver supports Python 3.8+.
 
 ## Usage
 
-The simplest way to schedule a backup is by specifying the URL of a web page,
-like so:
+The archiver is simple to use from the command line. The examples below work
+regardless of which execution mode you are using.
 
+### Command-Line Examples
+
+**Archive a single page:**
 ```bash
 archiver https://alexgude.com
 ```
 
-This will submit the main page of my blog, [alexgude.com][ag], to the Wayback
-Machine for archiving.
-
-[ag]: https://alexgude.com
-
-You can also archive all the URLs specified in a [`sitemap.xml`][sitemap] as
-follows:
-
-[sitemap]: https://en.wikipedia.org/wiki/Sitemaps
-
+**Archive all pages from a sitemap:**
 ```bash
 archiver --sitemaps https://alexgude.com/sitemap.xml
 ```
 
-This will backup every page listed in the sitemap of my website, [alexgude.com][ag].
-
-You can also pass a sitemap.xml file (requires the `file://` prefix) to the archiver:
-
+**Archive from a local sitemap file:**
+(Note the `file://` prefix is required)
 ```bash
 archiver --sitemaps file://sitemap.xml
 ```
 
-You can backup multiple pages by specifying multiple URLs or sitemaps:
-
-```bash
-archiver https://radiokeysmusic.com --sitemaps https://charles.uno/sitemap.xml https://alexgude.com/sitemaps.xml
-```
-
-You can also backup multiple URLs by writing them to a file (for example,
-`urls.txt`), one URL per line, and passing that file to archiver:
-
+**Archive from a text file of URLs:**
+(The file should contain one URL per line)
 ```bash
 archiver --file urls.txt
 ```
 
-Sitemaps often exclude themselves, so you can request that the sitemap itself
-be backed up using the flag `--archive-sitemap-also`:
+**Combine multiple sources:**
+```bash
+archiver https://radiokeysmusic.com --sitemaps https://charles.uno/sitemap.xml
+```
 
+**Archive the sitemap URL itself:**
 ```bash
 archiver --sitemaps https://alexgude.com/sitemaps.xml --archive-sitemap-also
 ```
 
+### Execution Modes
+
+The script runs in one of two modes, which it selects automatically based on
+whether it finds Internet Archive credentials.
+
+#### Authenticated Mode (Recommended)
+
+This is the preferred mode. The script uses the Internet Archive's **Save Page
+Now 2 (SPN2)** API to submit a capture job, wait for it to complete, and
+confirm the final success or failure.
+
+**To enable this mode:**
+
+1.  Get your S3-style API keys from your Internet Archive account settings:
+    [https://archive.org/account/s3.php](https://archive.org/account/s3.php)
+
+2.  Create a `.env` file in the directory where you run the `archiver`
+    command. Add your keys to it:
+    ```
+    INTERNET_ARCHIVE_ACCESS_KEY="YOUR_ACCESS_KEY_HERE"
+    INTERNET_ARCHIVE_SECRET_KEY="YOUR_SECRET_KEY_HERE"
+    ```
+
+The script will automatically detect this file (or the equivalent environment
+variables) and use the authenticated API.
+
+#### Unauthenticated Mode
+
+If no credentials are found, the script falls back to the public,
+unauthenticated API. This is a "fire-and-forget" method that submits the
+capture request but does not wait to confirm if it was successful.
+
 ## Help
 
-For a full list of commandline flags, Archiver has a built-in help displayed
+For a full list of command-line flags, Archiver has built-in help displayed
 with `archiver --help`:
 
 ```
 usage: archiver [-h] [--version] [--file FILE]
                 [--sitemaps SITEMAPS [SITEMAPS ...]]
                 [--log {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
-                [--log-to-file LOG_FILE] [--archive-sitemap-also]
-                [--jobs JOBS] [--rate-limit-wait RATE_LIMIT_IN_SEC]
+                [--log-to-file LOG_FILE]
+                [--archive-sitemap-also]
+                [--rate-limit-wait RATE_LIMIT_IN_SEC]
                 [--random-order]
                 [urls ...]
 
@@ -117,19 +123,21 @@ positional arguments:
 options:
   -h, --help            show this help message and exit
   --version             show program's version number and exit
-  --file FILE           path to a file containing urls to save (one url per line)
+  --file FILE           path to a file containing urls to save (one url per
+                        line)
   --sitemaps SITEMAPS [SITEMAPS ...]
-                        one or more URIs to sitemaps listing pages to archive; local paths must be prefixed with 'file://'
+                        one or more URIs to sitemaps listing pages to
+                        archive; local paths must be prefixed with 'file://'
   --log {DEBUG,INFO,WARNING,ERROR,CRITICAL}
                         set the logging level, defaults to WARNING
   --log-to-file LOG_FILE
                         redirect logs to a file
   --archive-sitemap-also
                         also submit the URL of the sitemap to be archived
-  --jobs JOBS, -j JOBS  run this many concurrent URL submissions, defaults to 1
   --rate-limit-wait RATE_LIMIT_IN_SEC
                         number of seconds to wait between page requests to
-                        number of seconds to wait between page requests to avoid flooding the archive site, defaults to 5; also used as the backoff factor for retries
+                        avoid flooding the archive site, defaults to 5; also
+                        used as the backoff factor for retries
   --random-order        randomize the order of pages before archiving
 ```
 

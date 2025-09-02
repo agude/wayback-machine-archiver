@@ -3,7 +3,6 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import argparse
 import logging
-import multiprocessing as mp
 import random
 import re
 import requests
@@ -145,13 +144,6 @@ def main():
         action="store_true",
     )
     parser.add_argument(
-        "--jobs",
-        "-j",
-        help="run this many concurrent URL submissions, defaults to 1",
-        default=1,
-        type=int,
-    )
-    parser.add_argument(
         "--rate-limit-wait",
         help="number of seconds to wait between page requests to avoid flooding the archive site, defaults to 5; also used as the backoff factor for retries",
         dest="rate_limit_in_sec",
@@ -250,16 +242,19 @@ def main():
             session=session, access_key=access_key, secret_key=secret_key
         )
 
-        # Phase 1: Submit all jobs in parallel
+        # Phase 1: Submit all jobs sequentially
         logging.info("Submitting %d URLs to the SPN2 API...", len(urls_to_archive_list))
-        pool = mp.Pool(processes=args.jobs)
-        # For SPN2, we call submit_capture with the raw URL
-        job_ids = pool.map(client.submit_capture, urls_to_archive_list)
-        pool.close()
-        pool.join()
+        job_ids = []
+        for url in urls_to_archive_list:
+            try:
+                job_id = client.submit_capture(url)
+                if job_id:
+                    job_ids.append(job_id)
+            except Exception as e:
+                logging.error("Failed to submit URL %s: %s", url, e)
 
-        # Filter out any submissions that failed (returned None or empty)
-        pending_job_ids = [job_id for job_id in job_ids if job_id]
+        # Filter out any submissions that failed
+        pending_job_ids = job_ids
         logging.info("All URLs submitted. Now polling for capture status...")
 
         # Phase 2: Poll for status in a single thread
@@ -302,11 +297,13 @@ def main():
         client = LegacyClient(session=session)
         # For legacy, we must format the URL first
         archive_urls_list = list(map(format_archive_url, urls_to_archive_list))
-        pool = mp.Pool(processes=args.jobs)
-        partial_call = partial(client.archive, rate_limit_wait=args.rate_limit_in_sec)
-        pool.map(partial_call, archive_urls_list)
-        pool.close()
-        pool.join()
+
+        logging.info("Archiving %d URLs sequentially...", len(archive_urls_list))
+        for url in archive_urls_list:
+            try:
+                client.archive(url, rate_limit_wait=args.rate_limit_in_sec)
+            except Exception as e:
+                logging.error("Failed to archive URL %s: %s", url, e)
 
 
 if __name__ == "__main__":
