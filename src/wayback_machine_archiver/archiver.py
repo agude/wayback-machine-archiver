@@ -7,9 +7,10 @@ import multiprocessing as mp
 import random
 import re
 import requests
-import time
 import xml.etree.ElementTree as ET
-from .clients import ArchiveClient
+import os
+from dotenv import load_dotenv
+from .clients import LegacyClient, SPN2Client
 
 # Library version
 __version__ = "1.10.0"
@@ -168,10 +169,15 @@ def main():
     args = parser.parse_args()
 
     # Set the logging level based on the arguments
-    #
-    # If `filename` is None, the constructor will set up a stream, otherwise it
-    # will use the file specified.
     logging.basicConfig(level=args.log_level, filename=args.log_file)
+
+    # This will load variables from a .env file into the environment.
+    # It will NOT overwrite any existing environment variables.
+    load_dotenv()
+
+    access_key = os.getenv("INTERNET_ARCHIVE_ACCESS_KEY")
+    secret_key = os.getenv("INTERNET_ARCHIVE_SECRET_KEY")
+    use_spn2 = access_key and secret_key
 
     logging.debug("Archiver Version: %s", __version__)
     logging.debug("Arguments: %s", args)
@@ -185,7 +191,7 @@ def main():
 
     # Set up retry and backoff
     session = requests.Session()
-    session.max_redirects = 100  # Changed number of redirects allowed from 30
+    session.max_redirects = 100
 
     retries = Retry(
         total=5,
@@ -239,7 +245,13 @@ def main():
     # Archive the URLs
     logging.debug("Archive URLs: %s", archive_urls_list)
 
-    client = ArchiveClient(session=session)
+    if use_spn2:
+        logging.info("SPN2 credentials found. Using authenticated API.")
+        client = SPN2Client(session=session)
+    else:
+        logging.warning("No SPN2 credentials found. Using public, unauthenticated API.")
+        client = LegacyClient(session=session)
+
     pool = mp.Pool(processes=args.jobs)
     partial_call = partial(client.archive, rate_limit_wait=args.rate_limit_in_sec)
     pool.map(partial_call, archive_urls_list)

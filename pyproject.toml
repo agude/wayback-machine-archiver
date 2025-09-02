@@ -24,6 +24,7 @@ classifiers = [
 ]
 keywords = ["Internet Archive", "Wayback Machine"]
 dependencies = [
+    "python-dotenv",
     "requests",
     "urllib3",
 ]
