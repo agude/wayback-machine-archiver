@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from .clients import LegacyClient, SPN2Client
 
 # Library version
-__version__ = "2.1.0"
+__version__ = "2.1.1"
 
 
 # String used to prefix local sitemaps
