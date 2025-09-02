@@ -12,7 +12,7 @@ class LegacyClient:
     def archive(self, request_url, rate_limit_wait):
         """Submit a url to the Internet Archive to archive."""
         if rate_limit_wait > 0:
-            logging.debug("Sleeping for %s", rate_limit_wait)
+            logging.debug("Sleeping for %s seconds", rate_limit_wait)
             time.sleep(rate_limit_wait)
         logging.info("Calling archive url %s", request_url)
         r = self.session.head(request_url, allow_redirects=True)
@@ -40,11 +40,14 @@ class SPN2Client:
             }
         )
 
-    def submit_capture(self, url_to_archive):
+    def submit_capture(self, url_to_archive, rate_limit_wait):
         """
         Submits a capture request to the SPN2 API.
         Returns the job_id for the capture request.
         """
+        if rate_limit_wait > 0:
+            logging.debug("Sleeping for %s seconds", rate_limit_wait)
+            time.sleep(rate_limit_wait)
         logging.info("Submitting %s to SPN2", url_to_archive)
         data = {"url": url_to_archive}
         try:

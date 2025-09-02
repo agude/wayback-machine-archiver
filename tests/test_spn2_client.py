@@ -28,7 +28,7 @@ def test_spn2_client_submit_capture(requests_mock, session):
     )
 
     client = SPN2Client(session=session, access_key=access_key, secret_key=secret_key)
-    job_id = client.submit_capture(url_to_archive)
+    job_id = client.submit_capture(url_to_archive, rate_limit_wait=0)
 
     # Assertions
     assert job_id == expected_job_id
