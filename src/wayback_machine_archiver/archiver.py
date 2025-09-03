@@ -86,6 +86,79 @@ def extract_pages_from_sitemap(site_map_text):
     return set(urls)
 
 
+def _submit_next_url(
+    urls_to_process,
+    client,
+    pending_jobs,
+    rate_limit_in_sec,
+    submission_attempts,
+    max_retries=3,
+):
+    """
+    Pops the next URL, submits it, and adds its job_id to pending_jobs.
+    If submission fails, it re-queues the URL up to max_retries.
+    """
+    url = urls_to_process.pop(0)
+    attempt_num = submission_attempts.get(url, 0) + 1
+    submission_attempts[url] = attempt_num
+
+    if attempt_num > max_retries:
+        logging.error("URL %s failed submission %d times, giving up.", url, max_retries)
+        return
+
+    try:
+        logging.info("Submitting %s (attempt %d/%d)...", url, attempt_num, max_retries)
+        job_id = client.submit_capture(url, rate_limit_wait=rate_limit_in_sec)
+        if job_id:
+            pending_jobs[job_id] = url
+            # On success, we can remove it from the attempts tracker
+            if url in submission_attempts:
+                del submission_attempts[url]
+    except Exception as e:
+        logging.warning(
+            "Failed to submit URL %s: %s. Re-queuing for another attempt.", url, e
+        )
+        urls_to_process.append(url)
+
+
+def _poll_pending_jobs(client, pending_jobs, poll_interval_sec=0.2):
+    """
+    Checks the status of pending jobs, removing completed ones.
+    Waits a short interval between each check to avoid slamming the API.
+    """
+    for job_id in list(pending_jobs.keys()):
+        original_url = pending_jobs[job_id]
+        try:
+            status_data = client.check_status(job_id)
+            status = status_data.get("status")
+
+            if status == "success":
+                timestamp = status_data.get("timestamp")
+                archive_url = f"https://web.archive.org/web/{timestamp}/{original_url}"
+                logging.info("Success for job %s: %s", job_id, archive_url)
+                del pending_jobs[job_id]
+            elif status == "error":
+                message = status_data.get("message", "Unknown error")
+                logging.error(
+                    "Error for job %s (%s): %s", job_id, original_url, message
+                )
+                del pending_jobs[job_id]
+            else:
+                logging.debug("Job %s (%s) is pending...", job_id, original_url)
+
+        except Exception as e:
+            logging.error(
+                "An exception occurred while checking job %s (%s): %s",
+                job_id,
+                original_url,
+                e,
+            )
+            del pending_jobs[job_id]
+
+        # Be nice to the polling API
+        time.sleep(poll_interval_sec)
+
+
 def main():
     # Command line parsing
     parser = argparse.ArgumentParser(
@@ -265,55 +338,36 @@ def main():
             session=session, access_key=access_key, secret_key=secret_key
         )
 
-        # Phase 1: Submit all jobs sequentially
-        logging.info("Submitting %d URLs to the SPN2 API...", len(urls_to_archive_list))
-        job_ids = []
-        for url in urls_to_archive_list:
-            try:
-                job_id = client.submit_capture(
-                    url, rate_limit_wait=args.rate_limit_in_sec
+        urls_to_process = list(urls_to_archive_list)
+        pending_jobs = {}
+        submission_attempts = {}  # Tracks failed submission retries
+
+        logging.info(
+            "Beginning interleaved submission and polling of %d URLs...",
+            len(urls_to_process),
+        )
+
+        while urls_to_process or pending_jobs:
+            if urls_to_process:
+                _submit_next_url(
+                    urls_to_process,
+                    client,
+                    pending_jobs,
+                    args.rate_limit_in_sec,
+                    submission_attempts,
                 )
-                if job_id:
-                    job_ids.append(job_id)
-            except Exception as e:
-                logging.error("Failed to submit URL %s: %s", url, e)
 
-        # Filter out any submissions that failed
-        pending_job_ids = job_ids
-        logging.info("All URLs submitted. Now polling for capture status...")
+            if pending_jobs:
+                _poll_pending_jobs(client, pending_jobs)
 
-        # Phase 2: Poll for status in a single thread
-        while pending_job_ids:
-            logging.info("%d captures remaining...", len(pending_job_ids))
-            # Use a copy of the list to allow removing items during iteration
-            for job_id in list(pending_job_ids):
-                try:
-                    status_data = client.check_status(job_id)
-                    status = status_data.get("status")
-
-                    if status == "success":
-                        original_url = status_data.get("original_url")
-                        timestamp = status_data.get("timestamp")
-                        archive_url = (
-                            f"https://web.archive.org/web/{timestamp}/{original_url}"
-                        )
-                        logging.info("Success for job %s: %s", job_id, archive_url)
-                        pending_job_ids.remove(job_id)
-                    elif status == "error":
-                        message = status_data.get("message", "Unknown error")
-                        logging.error("Error for job %s: %s", job_id, message)
-                        pending_job_ids.remove(job_id)
-                    else:  # status == "pending" or unknown
-                        logging.debug("Job %s is pending...", job_id)
-
-                except Exception as e:
-                    logging.error(
-                        "An exception occurred while checking job %s: %s", job_id, e
-                    )
-                    pending_job_ids.remove(job_id)  # Stop checking this job
-
-                if pending_job_ids:
-                    time.sleep(1)  # Wait 1 second between each status check
+            if not urls_to_process and pending_jobs:
+                wait_time = 5
+                logging.info(
+                    "%d captures remaining, starting next polling cycle in %d seconds...",
+                    len(pending_jobs),
+                    wait_time,
+                )
+                time.sleep(wait_time)
 
         logging.info("All captures complete.")
 
