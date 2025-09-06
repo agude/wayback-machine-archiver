@@ -70,14 +70,19 @@ archiver --sitemaps https://alexgude.com/sitemaps.xml --archive-sitemap-also
 
 ### Execution Modes
 
+The script uses the Internet Archive's **Save Page Now 2 (SPN2)** API for all
+archiving jobs. This modern API submits a capture request, waits for it to
+complete, and confirms the final success or failure, providing a reliable
+result for every URL.
+
 The script runs in one of two modes, which it selects automatically based on
-whether it finds Internet Archive credentials.
+whether it finds Internet Archive credentials. The primary difference is the
+rate limit applied.
 
 #### Authenticated Mode (Recommended)
 
-This is the preferred mode. The script uses the Internet Archive's **Save Page
-Now 2 (SPN2)** API to submit a capture job, wait for it to complete, and
-confirm the final success or failure.
+This is the preferred mode. By providing API keys, you are granted a higher
+rate limit by the Internet Archive, allowing for faster archiving.
 
 **To enable this mode:**
 
@@ -96,9 +101,10 @@ variables) and use the authenticated API.
 
 #### Unauthenticated Mode
 
-If no credentials are found, the script falls back to the public,
-unauthenticated API. This is a "fire-and-forget" method that submits the
-capture request but does not wait to confirm if it was successful.
+If no credentials are found, the script uses the same reliable SPN2 API in
+unauthenticated mode. It will still wait to confirm if the capture was
+successful. However, unauthenticated use is subject to a stricter rate limit
+from the Internet Archive to ensure fair use of the public service.
 
 ## Help
 
