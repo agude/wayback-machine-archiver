@@ -10,6 +10,9 @@ class SPN2Client:
     """
 
     SAVE_URL = "https://web.archive.org/save"
+    STATUS_URL = (
+        "https://web.archive.org/save/status"  # New constant for the base status URL
+    )
     STATUS_URL_TEMPLATE = "https://web.archive.org/save/status/{job_id}"
 
     def __init__(self, session, access_key=None, secret_key=None):
@@ -56,17 +59,36 @@ class SPN2Client:
 
     def check_status(self, job_id):
         """
-        Checks the status of a capture job.
+        Checks the status of a single capture job.
         Returns the JSON response from the status API.
         """
         status_url = self.STATUS_URL_TEMPLATE.format(job_id=job_id)
-        logging.debug("Checking status for job_id: %s", job_id)
+        logging.debug("Checking status for single job_id: %s", job_id)
         try:
             r = self.session.get(status_url)
             r.raise_for_status()
             return r.json()
         except requests.exceptions.HTTPError as e:
             logging.error("HTTP Error checking status for job %s: %s", job_id, e)
+            logging.error("Response content: %s", e.response.text)
+            raise
+        except Exception as e:
+            logging.exception(e)
+            raise
+
+    def check_status_batch(self, job_ids):
+        """
+        Checks the status of multiple capture jobs in a single request.
+        Returns the JSON response from the status API.
+        """
+        logging.debug("Checking status for %d jobs in a batch.", len(job_ids))
+        data = {"job_ids": ",".join(job_ids)}
+        try:
+            r = self.session.post(self.STATUS_URL, data=data)
+            r.raise_for_status()
+            return r.json()
+        except requests.exceptions.HTTPError as e:
+            logging.error("HTTP Error checking batch job status: %s", e)
             logging.error("Response content: %s", e.response.text)
             raise
         except Exception as e:

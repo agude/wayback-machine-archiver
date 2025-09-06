@@ -1,4 +1,3 @@
-# src/wayback_machine_archiver/workflow.py
 import logging
 import time
 
@@ -18,7 +17,7 @@ def _submit_next_url(
 
     if attempt_num > max_retries:
         logging.error("URL %s failed submission %d times, giving up.", url, max_retries)
-        return "failed"  # Return a status
+        return "failed"
 
     try:
         logging.info("Submitting %s (attempt %d/%d)...", url, attempt_num, max_retries)
@@ -32,21 +31,37 @@ def _submit_next_url(
             "Failed to submit URL %s: %s. Re-queuing for another attempt.", url, e
         )
         urls_to_process.append(url)
-    return None  # No immediate status
+    return None
 
 
 def _poll_pending_jobs(client, pending_jobs, poll_interval_sec=0.2):
     """
-    Checks the status of pending jobs.
+    Checks the status of all pending jobs using a single batch request.
     Returns a tuple of (successful_urls, failed_urls) for completed jobs.
     """
     successful_urls = []
     failed_urls = []
 
-    for job_id in list(pending_jobs.keys()):
-        original_url = pending_jobs[job_id]
-        try:
-            status_data = client.check_status(job_id)
+    # Get all job IDs that need to be checked.
+    job_ids_to_check = list(pending_jobs.keys())
+    if not job_ids_to_check:
+        return [], []
+
+    try:
+        # Make a single batch request for all pending jobs.
+        # The API is expected to return a list of status objects.
+        batch_statuses = client.check_status_batch(job_ids_to_check)
+
+        # It's possible the API returns a single object if only one job was queried.
+        if not isinstance(batch_statuses, list):
+            batch_statuses = [batch_statuses]
+
+        for status_data in batch_statuses:
+            job_id = status_data.get("job_id")
+            if not job_id or job_id not in pending_jobs:
+                continue
+
+            original_url = pending_jobs[job_id]
             status = status_data.get("status")
 
             if status == "success":
@@ -63,17 +78,20 @@ def _poll_pending_jobs(client, pending_jobs, poll_interval_sec=0.2):
                 del pending_jobs[job_id]
                 failed_urls.append(original_url)
             else:
-                logging.debug("Job %s (%s) is pending...", job_id, original_url)
-        except Exception as e:
-            logging.error(
-                "An exception occurred while checking job %s (%s): %s",
-                job_id,
-                original_url,
-                e,
-            )
-            del pending_jobs[job_id]
-            failed_urls.append(original_url)
-        time.sleep(poll_interval_sec)
+                logging.debug("Job %s (%s) is still pending...", job_id, original_url)
+
+    except Exception as e:
+        logging.error(
+            "An exception occurred during batch polling: %s. Clearing all pending jobs for this cycle to prevent loops.",
+            e,
+        )
+        # In case of a total failure, we clear the pending jobs to avoid getting stuck.
+        failed_urls.extend(pending_jobs.values())
+        pending_jobs.clear()
+
+    # A short sleep after each batch poll to be nice to the API.
+    time.sleep(poll_interval_sec)
+
     return successful_urls, failed_urls
 
 
@@ -82,7 +100,6 @@ def run_archive_workflow(client, urls_to_process, rate_limit_in_sec):
     pending_jobs = {}
     submission_attempts = {}
 
-    # --- Counters for the final summary ---
     total_urls = len(urls_to_process)
     success_count = 0
     failure_count = 0
@@ -94,7 +111,6 @@ def run_archive_workflow(client, urls_to_process, rate_limit_in_sec):
 
     while urls_to_process or pending_jobs:
         if urls_to_process:
-            # Check for submission failures that give up immediately
             status = _submit_next_url(
                 urls_to_process,
                 client,
