@@ -68,23 +68,16 @@ archiver https://radiokeysmusic.com --sitemaps https://charles.uno/sitemap.xml
 archiver --sitemaps https://alexgude.com/sitemaps.xml --archive-sitemap-also
 ```
 
-### Execution Modes
+## Authentication (Required)
 
-The script uses the Internet Archive's **Save Page Now 2 (SPN2)** API for all
-archiving jobs. This modern API submits a capture request, waits for it to
-complete, and confirms the final success or failure, providing a reliable
-result for every URL.
+As of version 3.0.0, this tool requires authentication with the Internet
+Archive's SPN2 API. This change was made to ensure all archiving jobs are
+reliable and their final success or failure status can be confirmed. The
+previous, less reliable method for unauthenticated users has been removed.
 
-The script runs in one of two modes, which it selects automatically based on
-whether it finds Internet Archive credentials. The primary difference is the
-rate limit applied.
+If you run the script without credentials, it will exit with an error message.
 
-#### Authenticated Mode (Recommended)
-
-This is the preferred mode. By providing API keys, you are granted a higher
-rate limit by the Internet Archive, allowing for faster archiving.
-
-**To enable this mode:**
+**To set up authentication:**
 
 1.  Get your S3-style API keys from your Internet Archive account settings:
     [https://archive.org/account/s3.php](https://archive.org/account/s3.php)
@@ -98,13 +91,6 @@ rate limit by the Internet Archive, allowing for faster archiving.
 
 The script will automatically detect this file (or the equivalent environment
 variables) and use the authenticated API.
-
-#### Unauthenticated Mode
-
-If no credentials are found, the script uses the same reliable SPN2 API in
-unauthenticated mode. It will still wait to confirm if the capture was
-successful. However, unauthenticated use is subject to a stricter rate limit
-from the Internet Archive to ensure fair use of the public service.
 
 ## Help
 
