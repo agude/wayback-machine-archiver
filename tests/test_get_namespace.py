@@ -1,5 +1,5 @@
 from collections import namedtuple
-from wayback_machine_archiver.archiver import get_namespace
+from wayback_machine_archiver.sitemaps import get_namespace
 
 ELEMENT = namedtuple("Element", "tag")
 

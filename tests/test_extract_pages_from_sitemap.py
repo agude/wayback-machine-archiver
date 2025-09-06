@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 from __future__ import unicode_literals
-from wayback_machine_archiver.archiver import extract_pages_from_sitemap
+from wayback_machine_archiver.sitemaps import extract_urls_from_sitemap
 
 
 def test_ascii_sitemap():
@@ -24,7 +24,7 @@ def test_ascii_sitemap():
         )
     )
 
-    assert extract_pages_from_sitemap(SITEMAP) == URLS
+    assert extract_urls_from_sitemap(SITEMAP) == URLS
 
 
 def test_unicode_sitemap():
@@ -62,4 +62,4 @@ def test_unicode_sitemap():
         )
     )
 
-    assert extract_pages_from_sitemap(SITEMAP) == URLS
+    assert extract_urls_from_sitemap(SITEMAP) == URLS

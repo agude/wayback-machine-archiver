@@ -1,5 +1,5 @@
 import pytest
-from wayback_machine_archiver.archiver import download_remote_sitemap
+from wayback_machine_archiver.sitemaps import download_remote_sitemap
 from requests.adapters import HTTPAdapter
 import requests
 

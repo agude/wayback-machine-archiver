@@ -1,6 +1,6 @@
 from unittest import mock
 import pytest
-from wayback_machine_archiver.archiver import _submit_next_url, _poll_pending_jobs
+from wayback_machine_archiver.workflow import _submit_next_url, _poll_pending_jobs
 
 # --- Tests for _submit_next_url ---
 
@@ -88,7 +88,7 @@ def test_submit_next_url_gives_up_after_max_retries():
 # --- Tests for _poll_pending_jobs ---
 
 
-@mock.patch("wayback_machine_archiver.archiver.time.sleep")
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
 def test_poll_removes_completed_jobs(mock_sleep):
     """
     Verify that jobs with 'success' or 'error' status are removed from the
@@ -118,7 +118,7 @@ def test_poll_removes_completed_jobs(mock_sleep):
     assert mock_sleep.call_count == 3, "Should sleep after each poll attempt"
 
 
-@mock.patch("wayback_machine_archiver.archiver.time.sleep")
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
 def test_poll_handles_exception_during_status_check(mock_sleep):
     """
     Verify that if checking a job's status raises an exception, the job is
