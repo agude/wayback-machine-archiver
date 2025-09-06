@@ -31,8 +31,7 @@ All dependencies are handled automatically. Archiver supports Python 3.8+.
 
 ## Usage
 
-The archiver is simple to use from the command line. The examples below work
-regardless of which execution mode you are using.
+The archiver is simple to use from the command line.
 
 ### Command-Line Examples
 
