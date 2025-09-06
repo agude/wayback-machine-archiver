@@ -122,54 +122,62 @@ usage: archiver [-h] [--version] [--file FILE]
 A script to backup a web pages with Internet Archive
 
 positional arguments:
-  urls                  the URLs of the pages to archive
+  urls                  Specifies the URLs of the pages to archive.
 
 options:
   -h, --help            show this help message and exit
   --version             show program's version number and exit
-  --file FILE           path to a file containing urls to save (one url per line)
+  --file FILE           Specifies the path to a file containing URLs to save,
+                        one per line.
   --sitemaps SITEMAPS [SITEMAPS ...]
-                        one or more URIs to sitemaps listing pages to archive;
-                        local paths must be prefixed with 'file://'
+                        Specifies one or more URIs to sitemaps listing pages
+                        to archive. Local paths must be prefixed with
+                        'file://'.
   --log {DEBUG,INFO,WARNING,ERROR,CRITICAL}
-                        set the logging level, defaults to WARNING
-                        (case-insensitive)
+                        Sets the logging level. Defaults to WARNING
+                        (case-insensitive).
   --log-to-file LOG_FILE
-                        redirect logs to a file
+                        Redirects logs to a specified file instead of the
+                        console.
   --archive-sitemap-also
-                        also submit the URL of the sitemap to be archived
+                        Submits the URL of the sitemap itself to be archived.
   --rate-limit-wait RATE_LIMIT_IN_SEC
-                        number of seconds to wait between page requests to
-                        avoid flooding the archive site, defaults to 15
-  --random-order        randomize the order of pages before archiving
+                        Specifies the number of seconds to wait between
+                        submissions. A minimum of 5 seconds is enforced for
+                        authenticated users. Defaults to 15.
+  --random-order        Randomizes the order of pages before archiving.
 
 SPN2 API Options:
   Control the behavior of the Internet Archive capture API.
 
-  --capture-all         Capture a web page even if it returns an error (e.g.,
+  --capture-all         Captures a web page even if it returns an error (e.g.,
                         404, 500).
-  --capture-outlinks    Capture web page outlinks automatically.
-  --capture-screenshot  Capture a full page screenshot.
+  --capture-outlinks    Captures web page outlinks automatically. Note: this
+                        can significantly increase the total number of
+                        captures and runtime.
+  --capture-screenshot  Captures a full page screenshot.
   --delay-wb-availability
-                        Make the capture available in the Wayback Machine
-                        after ~12 hours.
-  --force-get           Force the use of a simple HTTP GET request to capture
-                        the target URL.
-  --skip-first-archive  Skip checking if a capture is the first archive,
-                        making captures faster.
-  --email-result        Send an email report of the captured URLs to the
+                        Reduces load on Internet Archive systems by making the
+                        capture publicly available after ~12 hours instead of
+                        immediately.
+  --force-get           Bypasses the headless browser check, which can speed
+                        up captures for non-HTML content (e.g., PDFs, images).
+  --skip-first-archive  Speeds up captures by skipping the check for whether
+                        this is the first time a URL has been archived.
+  --email-result        Sends an email report of the captured URLs to the
                         user's registered email.
   --if-not-archived-within <timedelta>
-                        Capture only if the latest capture is older than
+                        Captures only if the latest capture is older than
                         <timedelta> (e.g., '3d 5h').
   --js-behavior-timeout <seconds>
-                        Run JS code for <N> seconds after page load. Defaults
-                        to 5.
+                        Runs JS code for <N> seconds after page load to
+                        trigger dynamic content. Defaults to 5, max is 30. Use
+                        0 to disable for static pages.
   --capture-cookie <cookie>
-                        Use an extra HTTP Cookie value when capturing the
+                        Uses an extra HTTP Cookie value when capturing the
                         target page.
   --user-agent <string>
-                        Use a custom HTTP User-Agent value when capturing the
+                        Uses a custom HTTP User-Agent value when capturing the
                         target page.
 ```
 
