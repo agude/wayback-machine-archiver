@@ -9,7 +9,7 @@ import requests
 import time
 import xml.etree.ElementTree as ET
 from dotenv import load_dotenv
-from .clients import LegacyClient, SPN2Client
+from .clients import SPN2Client
 
 # Library version
 __version__ = "2.2.0"
@@ -17,15 +17,6 @@ __version__ = "2.2.0"
 
 # String used to prefix local sitemaps
 LOCAL_PREFIX = "file://"
-
-
-def format_archive_url(url):
-    """Given a URL, constructs an Archive URL to submit the archive request."""
-    logging.debug("Creating archive URL for %s", url)
-    SAVE_URL = "https://web.archive.org/save/"
-    request_url = SAVE_URL + url
-
-    return request_url
 
 
 def get_namespace(element):
@@ -243,10 +234,10 @@ def main():
 
     access_key = os.getenv("INTERNET_ARCHIVE_ACCESS_KEY")
     secret_key = os.getenv("INTERNET_ARCHIVE_SECRET_KEY")
-    use_spn2 = access_key and secret_key
+    is_authenticated = access_key and secret_key
 
     # Enforce API minimums for both modes
-    if use_spn2:
+    if is_authenticated:
         MIN_SPN2_WAIT_SEC = 5
         if args.rate_limit_in_sec < MIN_SPN2_WAIT_SEC:
             logging.warning(
@@ -332,57 +323,45 @@ def main():
     # Archive the URLs
     logging.debug("Archive URLs: %s", urls_to_archive_list)
 
-    if use_spn2:
+    if is_authenticated:
         logging.info("SPN2 credentials found. Using authenticated API.")
-        client = SPN2Client(
-            session=session, access_key=access_key, secret_key=secret_key
-        )
-
-        urls_to_process = list(urls_to_archive_list)
-        pending_jobs = {}
-        submission_attempts = {}  # Tracks failed submission retries
-
-        logging.info(
-            "Beginning interleaved submission and polling of %d URLs...",
-            len(urls_to_process),
-        )
-
-        while urls_to_process or pending_jobs:
-            if urls_to_process:
-                _submit_next_url(
-                    urls_to_process,
-                    client,
-                    pending_jobs,
-                    args.rate_limit_in_sec,
-                    submission_attempts,
-                )
-
-            if pending_jobs:
-                _poll_pending_jobs(client, pending_jobs)
-
-            if not urls_to_process and pending_jobs:
-                wait_time = 5
-                logging.info(
-                    "%d captures remaining, starting next polling cycle in %d seconds...",
-                    len(pending_jobs),
-                    wait_time,
-                )
-                time.sleep(wait_time)
-
-        logging.info("All captures complete.")
-
     else:
         logging.warning("No SPN2 credentials found. Using public, unauthenticated API.")
-        client = LegacyClient(session=session)
-        # For legacy, we must format the URL first
-        archive_urls_list = list(map(format_archive_url, urls_to_archive_list))
 
-        logging.info("Archiving %d URLs sequentially...", len(archive_urls_list))
-        for url in archive_urls_list:
-            try:
-                client.archive(url, rate_limit_wait=args.rate_limit_in_sec)
-            except Exception as e:
-                logging.error("Failed to archive URL %s: %s", url, e)
+    client = SPN2Client(session=session, access_key=access_key, secret_key=secret_key)
+
+    urls_to_process = list(urls_to_archive_list)
+    pending_jobs = {}
+    submission_attempts = {}  # Tracks failed submission retries
+
+    logging.info(
+        "Beginning interleaved submission and polling of %d URLs...",
+        len(urls_to_process),
+    )
+
+    while urls_to_process or pending_jobs:
+        if urls_to_process:
+            _submit_next_url(
+                urls_to_process,
+                client,
+                pending_jobs,
+                args.rate_limit_in_sec,
+                submission_attempts,
+            )
+
+        if pending_jobs:
+            _poll_pending_jobs(client, pending_jobs)
+
+        if not urls_to_process and pending_jobs:
+            wait_time = 5
+            logging.info(
+                "%d captures remaining, starting next polling cycle in %d seconds...",
+                len(pending_jobs),
+                wait_time,
+            )
+            time.sleep(wait_time)
+
+    logging.info("All captures complete.")
 
 
 if __name__ == "__main__":

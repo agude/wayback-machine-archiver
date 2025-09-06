@@ -3,42 +3,29 @@ import time
 import requests
 
 
-class LegacyClient:
-    """Handles archiving using the public, unauthenticated API."""
-
-    def __init__(self, session):
-        self.session = session
-
-    def archive(self, request_url, rate_limit_wait):
-        """Submit a url to the Internet Archive to archive."""
-        if rate_limit_wait > 0:
-            logging.debug("Sleeping for %s seconds", rate_limit_wait)
-            time.sleep(rate_limit_wait)
-        logging.info("Calling archive url %s", request_url)
-        r = self.session.head(request_url, allow_redirects=True)
-        try:
-            # Raise `requests.exceptions.HTTPError` if 4XX or 5XX status
-            r.raise_for_status()
-        except requests.exceptions.HTTPError as e:
-            logging.exception(e)
-            raise
-
-
 class SPN2Client:
-    """Handles archiving using the authenticated SPN2 API."""
+    """
+    Handles archiving using the SPN2 API for both authenticated and
+    unauthenticated users.
+    """
 
     SAVE_URL = "https://web.archive.org/save"
     STATUS_URL_TEMPLATE = "https://web.archive.org/save/status/{job_id}"
 
-    def __init__(self, session, access_key, secret_key):
+    def __init__(self, session, access_key=None, secret_key=None):
+        """
+        Initializes the client. If access_key and secret_key are provided,
+        it will make authenticated requests. Otherwise, it will make
+        unauthenticated requests.
+        """
         self.session = session
-        auth_header = f"LOW {access_key}:{secret_key}"
-        self.session.headers.update(
-            {
-                "Authorization": auth_header,
-                "Accept": "application/json",
-            }
-        )
+        # Always set the Accept header for JSON responses
+        self.session.headers.update({"Accept": "application/json"})
+
+        # Add Authorization header only if credentials are provided
+        if access_key and secret_key:
+            auth_header = f"LOW {access_key}:{secret_key}"
+            self.session.headers.update({"Authorization": auth_header})
 
     def submit_capture(self, url_to_archive, rate_limit_wait):
         """
