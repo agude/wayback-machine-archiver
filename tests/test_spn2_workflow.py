@@ -1,6 +1,12 @@
+import logging
 from unittest import mock
 import pytest
-from wayback_machine_archiver.workflow import _submit_next_url, _poll_pending_jobs
+from wayback_machine_archiver.workflow import (
+    _submit_next_url,
+    _poll_pending_jobs,
+    run_archive_workflow,
+    PERMANENT_ERROR_MESSAGES,
+)
 
 # --- Tests for _submit_next_url ---
 
@@ -149,7 +155,7 @@ def test_poll_uses_batch_and_removes_completed_jobs(mock_sleep):
         "job-pending": "http://c.com",
     }
 
-    successful, failed = _poll_pending_jobs(mock_client, pending_jobs)
+    successful, failed, requeued = _poll_pending_jobs(mock_client, pending_jobs)
 
     # Assertions
     mock_client.check_status_batch.assert_called_once_with(
@@ -157,5 +163,141 @@ def test_poll_uses_batch_and_removes_completed_jobs(mock_sleep):
     )
     assert pending_jobs == {"job-pending": "http://c.com"}
     assert successful == ["http://a.com"]
+    # The default error is now treated as permanent
     assert failed == ["http://b.com"]
+    assert requeued == []
     mock_sleep.assert_called_once()  # Should only sleep once per batch
+
+
+@pytest.mark.parametrize(
+    "status_ext, expected_outcome, expected_log_level, expected_log_snippet",
+    [
+        (
+            "error:service-unavailable",
+            "requeue",
+            logging.WARNING,
+            "failed with a transient error",
+        ),
+        (
+            "error:not-found",
+            "fail",
+            logging.ERROR,
+            PERMANENT_ERROR_MESSAGES["error:not-found"],
+        ),
+        (
+            "error:some-new-unseen-error",
+            "fail",
+            logging.ERROR,
+            "An unrecoverable error occurred.",
+        ),
+    ],
+)
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_poll_pending_jobs_handles_errors_intelligently(
+    mock_sleep,
+    caplog,
+    status_ext,
+    expected_outcome,
+    expected_log_level,
+    expected_log_snippet,
+):
+    """
+    Verify that _poll_pending_jobs correctly categorizes errors as either
+    transient (re-queue) or permanent (fail) and logs helpful messages.
+    """
+    mock_client = mock.Mock()
+    mock_client.check_status_batch.return_value = [
+        {
+            "status": "error",
+            "job_id": "job-1",
+            "status_ext": status_ext,
+            "message": "API message",
+        }
+    ]
+    pending_jobs = {"job-1": "http://example.com"}
+
+    with caplog.at_level(logging.WARNING):
+        successful, failed, requeued = _poll_pending_jobs(mock_client, pending_jobs)
+
+    assert not successful
+    if expected_outcome == "requeue":
+        assert requeued == ["http://example.com"]
+        assert not failed
+    else:  # fail
+        assert not requeued
+        assert failed == ["http://example.com"]
+
+    assert len(caplog.records) == 1
+    log_record = caplog.records[0]
+    assert log_record.levelno == expected_log_level
+    assert expected_log_snippet in log_record.message
+
+
+# --- Corrected test for run_archive_workflow dynamic polling ---
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+@mock.patch("wayback_machine_archiver.workflow._poll_pending_jobs")
+@mock.patch("wayback_machine_archiver.workflow._submit_next_url")
+def test_run_archive_workflow_dynamic_polling_is_fast_and_correct(
+    mock_submit, mock_poll, mock_sleep
+):
+    """
+    Verify that the polling wait time increases exponentially when jobs are pending
+    and the submission queue is empty, and that the test runs quickly.
+    """
+    mock_client = mock.Mock()
+    initial_urls = ["http://a.com"]
+    # Use a mutable list for the test to simulate its modification by _submit_next_url
+    urls_to_process_list = list(initial_urls)
+    rate_limit_in_sec = 0
+    api_params = {}
+
+    # Configure mock_submit to simulate a successful submission
+    # It needs to modify the urls_to_process_list and pending_jobs_dict passed to it
+    def submit_side_effect(urls_proc, client_arg, pending_jobs_dict, *args, **kwargs):
+        url = urls_proc.pop(0)  # Remove the URL from the list
+        job_id = f"job-{url}"
+        pending_jobs_dict[job_id] = url  # Add to pending jobs
+        return job_id
+
+    mock_submit.side_effect = submit_side_effect
+
+    # Configure mock_poll to simulate jobs staying pending, then succeeding
+    poll_calls = 0
+
+    def poll_side_effect(client_arg, pending_jobs_dict, *args, **kwargs):
+        nonlocal poll_calls
+        poll_calls += 1
+        if poll_calls <= 3:  # Simulate pending for 3 calls
+            return [], [], []  # No success, no failure, no requeue
+        else:  # Simulate success on the 4th call
+            # Remove all pending jobs to terminate the loop
+            successful_urls = list(pending_jobs_dict.values())
+            pending_jobs_dict.clear()
+            return successful_urls, [], []
+
+    mock_poll.side_effect = poll_side_effect
+
+    # Call the main workflow function
+    run_archive_workflow(
+        mock_client, urls_to_process_list, rate_limit_in_sec, api_params
+    )
+
+    # Assertions
+    # Check the calls to time.sleep
+    # We expect sleep to be called between polling cycles when the submission
+    # queue is empty.
+    # Cycle 1: Submits URL. Polls. Loop continues.
+    # Cycle 2: No URLs to submit. Polls. Sleeps for 5s.
+    # Cycle 3: No URLs to submit. Polls. Sleeps for 7s (5 * 1.5).
+    # Cycle 4: No URLs to submit. Polls. Sleeps for 10s (7 * 1.5).
+    # Cycle 5: No URLs to submit. Polls (job succeeds). Loop terminates.
+    # We filter out the small 0.2s sleeps that happen inside _poll_pending_jobs.
+    sleep_calls = [call[0][0] for call in mock_sleep.call_args_list if call[0][0] > 1]
+
+    assert sleep_calls == [5, 7, 10]
+    assert mock_submit.call_count == 1
+    # The poll side effect now runs 4 times to get to the success case
+    assert mock_poll.call_count == 4
+    assert not urls_to_process_list  # Ensure the initial URL list is empty

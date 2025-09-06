@@ -1,6 +1,49 @@
 import logging
 import time
 
+# A set of transient errors that suggest a retry might be successful.
+REQUEUE_ERRORS = {
+    "error:bad-gateway",
+    "error:bandwidth-limit-exceeded",
+    "error:browsing-timeout",
+    "error:cannot-fetch",
+    "error:capture-location-error",
+    "error:celery",
+    "error:gateway-timeout",
+    "error:internal-server-error",
+    "error:invalid-server-response",
+    "error:job-failed",
+    "error:no-browsers-available",
+    "error:protocol-error",
+    "error:proxy-error",
+    "error:read-timeout",
+    "error:service-unavailable",
+    "error:soft-time-limit-exceeded",
+    "error:too-many-requests",
+    "error:user-session-limit",
+}
+
+# A map of permanent error codes to user-friendly, explanatory messages.
+PERMANENT_ERROR_MESSAGES = {
+    "error:bad-request": "The API reported a bad request. This may be a bug in the archiver script.",
+    "error:blocked": "The target site is actively blocking the Internet Archive's requests. To save the block page, use the --capture-all flag.",
+    "error:blocked-client-ip": "Your IP address is on a blocklist (e.g., Spamhaus), and the Internet Archive is refusing the request.",
+    "error:blocked-url": "This URL is on a blocklist (e.g., a tracking domain) and cannot be archived.",
+    "error:filesize-limit": "The file at this URL is larger than the 2GB limit and cannot be archived.",
+    "error:ftp-access-denied": "Access to the FTP resource was denied due to a permissions issue.",
+    "error:http-version-not-supported": "The target server uses an unsupported HTTP version.",
+    "error:invalid-host-resolution": "The domain name could not be found. Check for typos in the URL.",
+    "error:invalid-url-syntax": "The URL is malformed. Please check its structure.",
+    "error:method-not-allowed": "The server forbids the HTTP method used for archiving. To save this error page, use the --capture-all flag.",
+    "error:network-authentication-required": "A captive portal or proxy is requiring authentication. To save the login page, use the --capture-all flag.",
+    "error:no-access": "The page is forbidden (403 Forbidden). To save this error page, use the --capture-all flag.",
+    "error:not-found": "The page could not be found (404 Not Found). To save this error page, use the --capture-all flag.",
+    "error:not-implemented": "The server does not support the functionality required to archive the page.",
+    "error:too-many-daily-captures": "This URL has already been captured the maximum number of times today.",
+    "error:too-many-redirects": "The URL has too many redirects, likely indicating a redirect loop.",
+    "error:unauthorized": "The page requires a login (401 Unauthorized). To save the login/error page, use the --capture-all flag.",
+}
+
 
 def _submit_next_url(
     urls_to_process,
@@ -34,8 +77,8 @@ def _submit_next_url(
             if url in submission_attempts:
                 del submission_attempts[url]
         else:
-            # This is the critical fix: Handle cases where the API accepts the
-            # request but does not return a job_id, indicating a rejection.
+            # Handle cases where the API accepts the request but does not
+            # return a job_id, indicating a rejection.
             logging.error(
                 "Failed to get a job_id for %s. The API may have rejected it (e.g., rate limit). This will be counted as a failure.",
                 url,
@@ -54,15 +97,16 @@ def _submit_next_url(
 def _poll_pending_jobs(client, pending_jobs, poll_interval_sec=0.2):
     """
     Checks the status of all pending jobs using a single batch request.
-    Returns a tuple of (successful_urls, failed_urls) for completed jobs.
+    Returns a tuple of (successful_urls, failed_urls, requeued_urls) for completed jobs.
     """
     successful_urls = []
     failed_urls = []
+    requeued_urls = []
 
     # Get all job IDs that need to be checked.
     job_ids_to_check = list(pending_jobs.keys())
     if not job_ids_to_check:
-        return [], []
+        return [], [], []
 
     try:
         # Make a single batch request for all pending jobs.
@@ -88,12 +132,30 @@ def _poll_pending_jobs(client, pending_jobs, poll_interval_sec=0.2):
                 del pending_jobs[job_id]
                 successful_urls.append(original_url)
             elif status == "error":
-                message = status_data.get("message", "Unknown error")
-                logging.error(
-                    "Error for job %s (%s): %s", job_id, original_url, message
-                )
-                del pending_jobs[job_id]
-                failed_urls.append(original_url)
+                status_ext = status_data.get("status_ext")
+                api_message = status_data.get("message", "Unknown error")
+
+                if status_ext in REQUEUE_ERRORS:
+                    logging.warning(
+                        "Job for %s failed with a transient error (%s). Re-queuing for another attempt.",
+                        original_url,
+                        status_ext,
+                    )
+                    del pending_jobs[job_id]
+                    requeued_urls.append(original_url)
+                else:
+                    # Look up the helpful message, with a fallback for unknown permanent errors.
+                    helpful_message = PERMANENT_ERROR_MESSAGES.get(
+                        status_ext, "An unrecoverable error occurred."
+                    )
+                    logging.error(
+                        "Permanent error for %s: %s (API message: %s)",
+                        original_url,
+                        helpful_message,
+                        api_message,
+                    )
+                    del pending_jobs[job_id]
+                    failed_urls.append(original_url)
             else:
                 logging.debug("Job %s (%s) is still pending...", job_id, original_url)
 
@@ -109,7 +171,7 @@ def _poll_pending_jobs(client, pending_jobs, poll_interval_sec=0.2):
     # A short sleep after each batch poll to be nice to the API.
     time.sleep(poll_interval_sec)
 
-    return successful_urls, failed_urls
+    return successful_urls, failed_urls, requeued_urls
 
 
 def run_archive_workflow(client, urls_to_process, rate_limit_in_sec, api_params):
@@ -148,9 +210,14 @@ def run_archive_workflow(client, urls_to_process, rate_limit_in_sec, api_params)
             polling_wait_time = INITIAL_POLLING_WAIT
 
         if pending_jobs:
-            successful, failed = _poll_pending_jobs(client, pending_jobs)
+            successful, failed, requeued = _poll_pending_jobs(client, pending_jobs)
             success_count += len(successful)
             failure_count += len(failed)
+            if requeued:
+                urls_to_process.extend(requeued)
+                logging.info(
+                    "Re-queued %d URLs due to transient API errors.", len(requeued)
+                )
 
         if not urls_to_process and pending_jobs:
             logging.info(
