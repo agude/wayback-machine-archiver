@@ -6,6 +6,7 @@ from wayback_machine_archiver.workflow import (
     _poll_pending_jobs,
     run_archive_workflow,
     PERMANENT_ERROR_MESSAGES,
+    TRANSIENT_ERROR_MESSAGES,
 )
 
 # --- Tests for _submit_next_url ---
@@ -176,7 +177,7 @@ def test_poll_uses_batch_and_removes_completed_jobs(mock_sleep):
             "error:service-unavailable",
             "requeue",
             logging.WARNING,
-            "failed with a transient error",
+            TRANSIENT_ERROR_MESSAGES["error:service-unavailable"],
         ),
         (
             "error:not-found",
