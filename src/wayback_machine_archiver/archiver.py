@@ -1,4 +1,3 @@
-# src/wayback_machine_archiver/archiver.py
 import logging
 import os
 import random
@@ -39,6 +38,9 @@ def main():
             )
             args.rate_limit_in_sec = MIN_WAIT_SEC
     else:
+        logging.warning(
+            "No Internet Archive credentials found. Proceeding in unauthenticated mode with a lower rate limit."
+        )
         MIN_WAIT_SEC = 15
         if args.rate_limit_in_sec < MIN_WAIT_SEC:
             logging.warning(
@@ -51,9 +53,11 @@ def main():
 
     # --- Gather all URLs to archive ---
     urls_to_archive = set()
+    logging.info("Gathering URLs to archive...")
 
     # 1. From command-line arguments
     if args.urls:
+        logging.info(f"Found {len(args.urls)} URLs from command-line arguments.")
         urls_to_archive.update(args.urls)
 
     # 2. From sitemaps
@@ -65,7 +69,9 @@ def main():
         session.mount("https://", HTTPAdapter(max_retries=retries))
         session.mount("http://", HTTPAdapter(max_retries=retries))
 
+        logging.info(f"Processing {len(args.sitemaps)} sitemap(s)...")
         sitemap_urls = process_sitemaps(args.sitemaps, session)
+        logging.info(f"Found {len(sitemap_urls)} URLs from sitemaps.")
         urls_to_archive.update(sitemap_urls)
         if args.archive_sitemap:
             remote_sitemaps = {s for s in args.sitemaps if not s.startswith("file://")}
@@ -75,12 +81,16 @@ def main():
     if args.file:
         with open(args.file) as f:
             urls_from_file = {line.strip() for line in f if line.strip()}
+            logging.info(f"Found {len(urls_from_file)} URLs from file: {args.file}")
             urls_to_archive.update(urls_from_file)
 
     urls_to_process = list(urls_to_archive)
+
     if not urls_to_process:
-        logging.warning("No URLs found to archive. Exiting.")
+        logging.warning("No unique URLs found to archive. Exiting.")
         return
+
+    logging.info(f"Found a total of {len(urls_to_process)} unique URLs to archive.")
 
     # Randomize order if requested
     if args.random_order:
