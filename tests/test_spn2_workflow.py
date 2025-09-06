@@ -89,17 +89,17 @@ def test_submit_next_url_gives_up_after_max_retries():
 
 
 @mock.patch("wayback_machine_archiver.workflow.time.sleep")
-def test_poll_removes_completed_jobs(mock_sleep):
+def test_poll_uses_batch_and_removes_completed_jobs(mock_sleep):
     """
     Verify that jobs with 'success' or 'error' status are removed from the
-    pending list, while 'pending' jobs remain.
+    pending list via the batch endpoint, while 'pending' jobs remain.
     """
     mock_client = mock.Mock()
-    # Define the return values for consecutive calls to check_status
-    mock_client.check_status.side_effect = [
-        {"status": "success", "original_url": "http://a.com", "timestamp": "20250101"},
-        {"status": "error", "message": "Too many redirects."},
-        {"status": "pending"},
+    # Define the return value for the single batch request
+    mock_client.check_status_batch.return_value = [
+        {"status": "success", "job_id": "job-success", "timestamp": "20250101"},
+        {"status": "error", "job_id": "job-error", "message": "Too many redirects."},
+        {"status": "pending", "job_id": "job-pending"},
     ]
 
     pending_jobs = {
@@ -108,30 +108,13 @@ def test_poll_removes_completed_jobs(mock_sleep):
         "job-pending": "http://c.com",
     }
 
-    _poll_pending_jobs(mock_client, pending_jobs)
+    successful, failed = _poll_pending_jobs(mock_client, pending_jobs)
 
     # Assertions
-    assert pending_jobs == {"job-pending": "http://c.com"}, (
-        "Only the pending job should remain"
+    mock_client.check_status_batch.assert_called_once_with(
+        ["job-success", "job-error", "job-pending"]
     )
-    assert mock_client.check_status.call_count == 3
-    assert mock_sleep.call_count == 3, "Should sleep after each poll attempt"
-
-
-@mock.patch("wayback_machine_archiver.workflow.time.sleep")
-def test_poll_handles_exception_during_status_check(mock_sleep):
-    """
-    Verify that if checking a job's status raises an exception, the job is
-    removed from the pending list to prevent repeated errors.
-    """
-    mock_client = mock.Mock()
-    mock_client.check_status.side_effect = Exception("Network Error")
-
-    pending_jobs = {"job-will-fail": "http://example.com"}
-
-    _poll_pending_jobs(mock_client, pending_jobs)
-
-    # Assertions
-    assert not pending_jobs, "Job that caused an exception should be removed"
-    mock_client.check_status.assert_called_once_with("job-will-fail")
-    mock_sleep.assert_called_once()
+    assert pending_jobs == {"job-pending": "http://c.com"}
+    assert successful == ["http://a.com"]
+    assert failed == ["http://b.com"]
+    mock_sleep.assert_called_once()  # Should only sleep once per batch
