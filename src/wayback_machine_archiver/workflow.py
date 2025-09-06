@@ -10,7 +10,10 @@ def _submit_next_url(
     submission_attempts,
     max_retries=3,
 ):
-    """Pops the next URL, submits it, and adds its job_id to pending_jobs."""
+    """
+    Pops the next URL, submits it, and adds its job_id to pending_jobs.
+    Returns 'failed' on a definitive failure, otherwise None.
+    """
     url = urls_to_process.pop(0)
     attempt_num = submission_attempts.get(url, 0) + 1
     submission_attempts[url] = attempt_num
@@ -22,15 +25,26 @@ def _submit_next_url(
     try:
         logging.info("Submitting %s (attempt %d/%d)...", url, attempt_num, max_retries)
         job_id = client.submit_capture(url, rate_limit_wait=rate_limit_in_sec)
+
         if job_id:
             pending_jobs[job_id] = url
             if url in submission_attempts:
                 del submission_attempts[url]
+        else:
+            # This is the critical fix: Handle cases where the API accepts the
+            # request but does not return a job_id, indicating a rejection.
+            logging.error(
+                "Failed to get a job_id for %s. The API may have rejected it (e.g., rate limit). This will be counted as a failure.",
+                url,
+            )
+            return "failed"
+
     except Exception as e:
         logging.warning(
             "Failed to submit URL %s: %s. Re-queuing for another attempt.", url, e
         )
         urls_to_process.append(url)
+
     return None
 
 
