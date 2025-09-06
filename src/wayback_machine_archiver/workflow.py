@@ -121,6 +121,12 @@ def run_archive_workflow(client, urls_to_process, rate_limit_in_sec, api_params)
     success_count = 0
     failure_count = 0
 
+    # --- Variables for dynamic polling ---
+    INITIAL_POLLING_WAIT = 5
+    MAX_POLLING_WAIT = 60
+    POLLING_BACKOFF_FACTOR = 1.5
+    polling_wait_time = INITIAL_POLLING_WAIT
+
     logging.info(
         "Beginning interleaved submission and polling of %d URLs...",
         total_urls,
@@ -138,6 +144,8 @@ def run_archive_workflow(client, urls_to_process, rate_limit_in_sec, api_params)
             )
             if status == "failed":
                 failure_count += 1
+            # Reset polling wait time after a new submission
+            polling_wait_time = INITIAL_POLLING_WAIT
 
         if pending_jobs:
             successful, failed = _poll_pending_jobs(client, pending_jobs)
@@ -145,13 +153,16 @@ def run_archive_workflow(client, urls_to_process, rate_limit_in_sec, api_params)
             failure_count += len(failed)
 
         if not urls_to_process and pending_jobs:
-            wait_time = 5
             logging.info(
                 "%d captures remaining, starting next polling cycle in %d seconds...",
                 len(pending_jobs),
-                wait_time,
+                polling_wait_time,
             )
-            time.sleep(wait_time)
+            time.sleep(polling_wait_time)
+            # Increase wait time for the next cycle
+            polling_wait_time = min(
+                int(polling_wait_time * POLLING_BACKOFF_FACTOR), MAX_POLLING_WAIT
+            )
 
     logging.info("--------------------------------------------------")
     logging.info("Archive workflow complete.")

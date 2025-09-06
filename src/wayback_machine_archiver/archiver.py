@@ -115,6 +115,7 @@ def main():
         total=5,
         backoff_factor=args.rate_limit_in_sec,
         status_forcelist=[500, 502, 503, 504, 520],
+        allowed_methods=["HEAD", "GET", "POST", "PUT", "DELETE", "OPTIONS", "TRACE"],
     )
     client_session.mount("https://", HTTPAdapter(max_retries=retries))
     client_session.mount("http://", HTTPAdapter(max_retries=retries))
