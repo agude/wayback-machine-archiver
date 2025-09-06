@@ -23,6 +23,28 @@ REQUEUE_ERRORS = {
     "error:user-session-limit",
 }
 
+# A map of transient error codes to user-friendly, explanatory messages.
+TRANSIENT_ERROR_MESSAGES = {
+    "error:bad-gateway": "The server reported a temporary upstream issue (Bad Gateway).",
+    "error:bandwidth-limit-exceeded": "The target server has exceeded its bandwidth limit.",
+    "error:browsing-timeout": "The headless browser timed out, possibly due to high server load.",
+    "error:cannot-fetch": "The Internet Archive's systems are temporarily overloaded.",
+    "error:capture-location-error": "An internal Internet Archive system error occurred.",
+    "error:celery": "An error occurred in the Internet Archive's internal job queue.",
+    "error:gateway-timeout": "The server reported a temporary upstream timeout (Gateway Timeout).",
+    "error:internal-server-error": "The Internet Archive's server reported a temporary internal error.",
+    "error:invalid-server-response": "The target server sent a malformed response, possibly due to a network glitch.",
+    "error:job-failed": "The capture failed due to a generic Internet Archive system error.",
+    "error:no-browsers-available": "The Internet Archive's capture browsers are temporarily at capacity.",
+    "error:protocol-error": "The HTTP connection was broken, likely due to a network issue.",
+    "error:proxy-error": "An internal Internet Archive proxy error occurred.",
+    "error:read-timeout": "The connection timed out while reading data from the server.",
+    "error:service-unavailable": "The Internet Archive's service is temporarily unavailable.",
+    "error:soft-time-limit-exceeded": "The capture took too long and was terminated; a retry may succeed.",
+    "error:too-many-requests": "The target server is rate-limiting requests.",
+    "error:user-session-limit": "Your Internet Archive account has reached its concurrent job limit.",
+}
+
 # A map of permanent error codes to user-friendly, explanatory messages.
 PERMANENT_ERROR_MESSAGES = {
     "error:bad-request": "The API reported a bad request. This may be a bug in the archiver script.",
@@ -136,9 +158,13 @@ def _poll_pending_jobs(client, pending_jobs, poll_interval_sec=0.2):
                 api_message = status_data.get("message", "Unknown error")
 
                 if status_ext in REQUEUE_ERRORS:
+                    helpful_message = TRANSIENT_ERROR_MESSAGES.get(
+                        status_ext, "A transient error occurred."
+                    )
                     logging.warning(
-                        "Job for %s failed with a transient error (%s). Re-queuing for another attempt.",
+                        "Transient error for %s: %s Re-queuing for another attempt. (API code: %s)",
                         original_url,
+                        helpful_message,
                         status_ext,
                     )
                     del pending_jobs[job_id]
