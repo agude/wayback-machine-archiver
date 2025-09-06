@@ -1,8 +1,10 @@
+# tests/test_cli.py
 import sys
 from unittest import mock
 import pytest
 import logging
 from wayback_machine_archiver.archiver import main
+from wayback_machine_archiver.cli import create_parser
 
 # This test file now mocks the main workflow and any I/O functions
 # to keep the tests focused purely on the CLI argument parsing logic.
@@ -80,3 +82,63 @@ def test_main_exits_if_no_credentials(mock_logging_error):
         assert e.value.code == 1
         # Check that we logged an error message to the user
         assert mock_logging_error.call_count > 0
+
+
+def test_api_option_flags_are_parsed_correctly():
+    """
+    Directly tests the parser to ensure all API flags are correctly defined
+    and their default values are as expected.
+    """
+    parser = create_parser()
+
+    # Test default values (when no flags are passed)
+    args = parser.parse_args([])
+    assert args.capture_all is False
+    assert args.capture_outlinks is False
+    assert args.capture_screenshot is False
+    assert args.delay_wb_availability is False
+    assert args.force_get is False
+    assert args.skip_first_archive is False
+    assert args.email_result is False
+    assert args.if_not_archived_within is None
+    assert args.js_behavior_timeout is None
+    assert args.capture_cookie is None
+    assert args.use_user_agent is None
+
+    # Test boolean flags are set to True
+    args = parser.parse_args(
+        [
+            "--capture-all",
+            "--capture-outlinks",
+            "--capture-screenshot",
+            "--delay-wb-availability",
+            "--force-get",
+            "--skip-first-archive",
+            "--email-result",
+        ]
+    )
+    assert args.capture_all is True
+    assert args.capture_outlinks is True
+    assert args.capture_screenshot is True
+    assert args.delay_wb_availability is True
+    assert args.force_get is True
+    assert args.skip_first_archive is True
+    assert args.email_result is True
+
+    # Test value-based flags
+    args = parser.parse_args(
+        [
+            "--if-not-archived-within",
+            "10d 5h",
+            "--js-behavior-timeout",
+            "25",
+            "--capture-cookie",
+            "name=value",
+            "--user-agent",
+            "MyTestAgent/1.0",
+        ]
+    )
+    assert args.if_not_archived_within == "10d 5h"
+    assert args.js_behavior_timeout == 25
+    assert args.capture_cookie == "name=value"
+    assert args.use_user_agent == "MyTestAgent/1.0"

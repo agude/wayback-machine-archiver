@@ -45,6 +45,34 @@ def main():
         )
         args.rate_limit_in_sec = MIN_WAIT_SEC
 
+    # --- Build API parameters dictionary from CLI args ---
+    api_params = {}
+    if args.capture_all:
+        api_params["capture_all"] = "1"
+    if args.capture_outlinks:
+        api_params["capture_outlinks"] = "1"
+    if args.capture_screenshot:
+        api_params["capture_screenshot"] = "1"
+    if args.delay_wb_availability:
+        api_params["delay_wb_availability"] = "1"
+    if args.force_get:
+        api_params["force_get"] = "1"
+    if args.skip_first_archive:
+        api_params["skip_first_archive"] = "1"
+    if args.email_result:
+        api_params["email_result"] = "1"
+    if args.if_not_archived_within:
+        api_params["if_not_archived_within"] = args.if_not_archived_within
+    if args.js_behavior_timeout is not None:
+        api_params["js_behavior_timeout"] = args.js_behavior_timeout
+    if args.capture_cookie:
+        api_params["capture_cookie"] = args.capture_cookie
+    if args.use_user_agent:
+        api_params["use_user_agent"] = args.use_user_agent
+
+    if api_params:
+        logging.info(f"Using the following API parameters: {api_params}")
+
     # --- Gather all URLs to archive ---
     urls_to_archive = set()
     logging.info("Gathering URLs to archive...")
@@ -87,6 +115,7 @@ def main():
         total=5,
         backoff_factor=args.rate_limit_in_sec,
         status_forcelist=[500, 502, 503, 504, 520],
+        allowed_methods=["HEAD", "GET", "POST", "PUT", "DELETE", "OPTIONS", "TRACE"],
     )
     client_session.mount("https://", HTTPAdapter(max_retries=retries))
     client_session.mount("http://", HTTPAdapter(max_retries=retries))
@@ -94,7 +123,7 @@ def main():
     client = SPN2Client(
         session=client_session, access_key=access_key, secret_key=secret_key
     )
-    run_archive_workflow(client, urls_to_process, args.rate_limit_in_sec)
+    run_archive_workflow(client, urls_to_process, args.rate_limit_in_sec, api_params)
 
 
 if __name__ == "__main__":

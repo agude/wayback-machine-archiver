@@ -8,6 +8,7 @@ def _submit_next_url(
     pending_jobs,
     rate_limit_in_sec,
     submission_attempts,
+    api_params,
     max_retries=3,
 ):
     """
@@ -24,7 +25,9 @@ def _submit_next_url(
 
     try:
         logging.info("Submitting %s (attempt %d/%d)...", url, attempt_num, max_retries)
-        job_id = client.submit_capture(url, rate_limit_wait=rate_limit_in_sec)
+        job_id = client.submit_capture(
+            url, rate_limit_wait=rate_limit_in_sec, api_params=api_params
+        )
 
         if job_id:
             pending_jobs[job_id] = url
@@ -109,7 +112,7 @@ def _poll_pending_jobs(client, pending_jobs, poll_interval_sec=0.2):
     return successful_urls, failed_urls
 
 
-def run_archive_workflow(client, urls_to_process, rate_limit_in_sec):
+def run_archive_workflow(client, urls_to_process, rate_limit_in_sec, api_params):
     """Manages the main loop for submitting and polling URLs."""
     pending_jobs = {}
     submission_attempts = {}
@@ -117,6 +120,12 @@ def run_archive_workflow(client, urls_to_process, rate_limit_in_sec):
     total_urls = len(urls_to_process)
     success_count = 0
     failure_count = 0
+
+    # --- Variables for dynamic polling ---
+    INITIAL_POLLING_WAIT = 5
+    MAX_POLLING_WAIT = 60
+    POLLING_BACKOFF_FACTOR = 1.5
+    polling_wait_time = INITIAL_POLLING_WAIT
 
     logging.info(
         "Beginning interleaved submission and polling of %d URLs...",
@@ -131,9 +140,12 @@ def run_archive_workflow(client, urls_to_process, rate_limit_in_sec):
                 pending_jobs,
                 rate_limit_in_sec,
                 submission_attempts,
+                api_params,
             )
             if status == "failed":
                 failure_count += 1
+            # Reset polling wait time after a new submission
+            polling_wait_time = INITIAL_POLLING_WAIT
 
         if pending_jobs:
             successful, failed = _poll_pending_jobs(client, pending_jobs)
@@ -141,13 +153,16 @@ def run_archive_workflow(client, urls_to_process, rate_limit_in_sec):
             failure_count += len(failed)
 
         if not urls_to_process and pending_jobs:
-            wait_time = 5
             logging.info(
                 "%d captures remaining, starting next polling cycle in %d seconds...",
                 len(pending_jobs),
-                wait_time,
+                polling_wait_time,
             )
-            time.sleep(wait_time)
+            time.sleep(polling_wait_time)
+            # Increase wait time for the next cycle
+            polling_wait_time = min(
+                int(polling_wait_time * POLLING_BACKOFF_FACTOR), MAX_POLLING_WAIT
+            )
 
     logging.info("--------------------------------------------------")
     logging.info("Archive workflow complete.")

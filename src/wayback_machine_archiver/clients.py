@@ -20,13 +20,16 @@ class SPN2Client:
         auth_header = f"LOW {access_key}:{secret_key}"
         self.session.headers.update({"Authorization": auth_header})
 
-    def submit_capture(self, url_to_archive, rate_limit_wait):
+    def submit_capture(self, url_to_archive, rate_limit_wait, api_params=None):
         """Submits a capture request to the SPN2 API."""
         if rate_limit_wait > 0:
             logging.debug("Sleeping for %s seconds", rate_limit_wait)
             time.sleep(rate_limit_wait)
         logging.info("Submitting %s to SPN2", url_to_archive)
         data = {"url": url_to_archive}
+        if api_params:
+            data.update(api_params)
+
         r = self.session.post(self.SAVE_URL, data=data)
         r.raise_for_status()
         response_json = r.json()

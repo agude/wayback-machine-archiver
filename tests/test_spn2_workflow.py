@@ -18,11 +18,18 @@ def test_submit_next_url_success():
     # Simulate a previous failure to ensure the tracker is cleared on success
     submission_attempts = {"http://example.com": 1}
 
-    _submit_next_url(urls_to_process, mock_client, pending_jobs, 5, submission_attempts)
+    _submit_next_url(
+        urls_to_process,
+        mock_client,
+        pending_jobs,
+        5,
+        submission_attempts,
+        api_params={},
+    )
 
     # Assertions
     mock_client.submit_capture.assert_called_once_with(
-        "http://example.com", rate_limit_wait=5
+        "http://example.com", rate_limit_wait=5, api_params={}
     )
     assert pending_jobs == {"job-123": "http://example.com"}
     assert not urls_to_process, "URL should have been consumed from the list"
@@ -43,7 +50,14 @@ def test_submit_next_url_failure_requeues_and_tracks_attempt():
     pending_jobs = {}
     submission_attempts = {}
 
-    _submit_next_url(urls_to_process, mock_client, pending_jobs, 5, submission_attempts)
+    _submit_next_url(
+        urls_to_process,
+        mock_client,
+        pending_jobs,
+        5,
+        submission_attempts,
+        api_params={},
+    )
 
     # Assertions
     assert not pending_jobs, "No job should have been added on failure"
@@ -73,6 +87,7 @@ def test_submit_next_url_gives_up_after_max_retries():
         pending_jobs,
         5,
         submission_attempts,
+        api_params={},
         max_retries=3,
     )
 
@@ -82,6 +97,32 @@ def test_submit_next_url_gives_up_after_max_retries():
     assert not urls_to_process, "URL should be consumed but not re-queued"
     assert submission_attempts == {"http://will-fail.com": 4}, (
         "Attempt count is still updated"
+    )
+
+
+def test_submit_next_url_passes_api_params_to_client():
+    """
+    Verify that the api_params dictionary is correctly passed to the client's
+    submit_capture method.
+    """
+    mock_client = mock.Mock()
+    mock_client.submit_capture.return_value = "job-123"
+    urls_to_process = ["http://example.com"]
+    pending_jobs = {}
+    submission_attempts = {}
+    api_params = {"capture_screenshot": "1", "force_get": "1"}
+
+    _submit_next_url(
+        urls_to_process,
+        mock_client,
+        pending_jobs,
+        0,
+        submission_attempts,
+        api_params,
+    )
+
+    mock_client.submit_capture.assert_called_once_with(
+        "http://example.com", rate_limit_wait=0, api_params=api_params
     )
 
 
