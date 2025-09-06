@@ -68,18 +68,16 @@ archiver https://radiokeysmusic.com --sitemaps https://charles.uno/sitemap.xml
 archiver --sitemaps https://alexgude.com/sitemaps.xml --archive-sitemap-also
 ```
 
-### Execution Modes
+## Authentication (Required)
 
-The script runs in one of two modes, which it selects automatically based on
-whether it finds Internet Archive credentials.
+As of version 3.0.0, this tool requires authentication with the Internet
+Archive's SPN2 API. This change was made to ensure all archiving jobs are
+reliable and their final success or failure status can be confirmed. The
+previous, less reliable method for unauthenticated users has been removed.
 
-#### Authenticated Mode (Recommended)
+If you run the script without credentials, it will exit with an error message.
 
-This is the preferred mode. The script uses the Internet Archive's **Save Page
-Now 2 (SPN2)** API to submit a capture job, wait for it to complete, and
-confirm the final success or failure.
-
-**To enable this mode:**
+**To set up authentication:**
 
 1.  Get your S3-style API keys from your Internet Archive account settings:
     [https://archive.org/account/s3.php](https://archive.org/account/s3.php)
@@ -93,12 +91,6 @@ confirm the final success or failure.
 
 The script will automatically detect this file (or the equivalent environment
 variables) and use the authenticated API.
-
-#### Unauthenticated Mode
-
-If no credentials are found, the script falls back to the public,
-unauthenticated API. This is a "fire-and-forget" method that submits the
-capture request but does not wait to confirm if it was successful.
 
 ## Help
 

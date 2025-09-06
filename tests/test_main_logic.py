@@ -1,59 +1,42 @@
 import sys
 from unittest import mock
+from wayback_machine_archiver.archiver import main
 
-from wayback_machine_archiver.archiver import main, format_archive_url
+# This test file now mocks the main workflow and assumes credentials are present
+# to test the URL gathering and shuffling logic.
 
-
-@mock.patch("wayback_machine_archiver.archiver.LegacyClient")
-@mock.patch("wayback_machine_archiver.archiver.os.getenv", return_value=None)
+@mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow")
+@mock.patch("wayback_machine_archiver.archiver.os.getenv", return_value="dummy_key")
 @mock.patch("wayback_machine_archiver.archiver.random.shuffle")
-def test_random_order_flag_shuffles_urls(mock_shuffle, mock_getenv, mock_legacy_client):
-    """
-    Verify that when --random-order is passed, random.shuffle is called
-    and the client's archive method is called for each URL.
-    """
-    # Arrange: Simulate command-line arguments
+def test_random_order_flag_shuffles_urls(
+    mock_shuffle, mock_getenv, mock_workflow, mock_sitemaps
+):
+    """Verify that when --random-order is passed, random.shuffle is called."""
     urls_to_archive = ["http://test.com/a", "http://test.com/b"]
     sys.argv = ["archiver", "--random-order"] + urls_to_archive
-
-    # Get a reference to the mock client instance that main() will create
-    mock_client_instance = mock_legacy_client.return_value
-
-    # Act: Run the main function
     main()
-
-    # Assert: Check that our mocks were called as expected
     mock_shuffle.assert_called_once()
-    assert mock_client_instance.archive.call_count == len(urls_to_archive)
 
-    # Verify the content of the calls is correct
-    called_urls = {call.args[0] for call in mock_client_instance.archive.call_args_list}
-    expected_urls = {format_archive_url(u) for u in urls_to_archive}
-    assert called_urls == expected_urls
+    # Check for membership, not order, by comparing sets.
+    # The second argument to the mock_workflow call is the list of URLs.
+    passed_urls = mock_workflow.call_args[0][1]
+    assert set(passed_urls) == set(urls_to_archive)
 
 
-@mock.patch("wayback_machine_archiver.archiver.LegacyClient")
-@mock.patch("wayback_machine_archiver.archiver.os.getenv", return_value=None)
+@mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow")
+@mock.patch("wayback_machine_archiver.archiver.os.getenv", return_value="dummy_key")
 @mock.patch("wayback_machine_archiver.archiver.random.shuffle")
-def test_default_order_does_not_shuffle(mock_shuffle, mock_getenv, mock_legacy_client):
-    """
-    Verify that without --random-order, shuffle is not called,
-    but the client's archive method is still called for each URL.
-    """
-    # Arrange: Simulate command-line arguments
+def test_default_order_does_not_shuffle(
+    mock_shuffle, mock_getenv, mock_workflow, mock_sitemaps
+):
+    """Verify that without --random-order, shuffle is not called."""
     urls_to_archive = ["http://test.com/a", "http://test.com/b"]
     sys.argv = ["archiver"] + urls_to_archive
-
-    mock_client_instance = mock_legacy_client.return_value
-
-    # Act: Run the main function
     main()
-
-    # Assert: Check that shuffle was NOT called, but the client was.
     mock_shuffle.assert_not_called()
-    assert mock_client_instance.archive.call_count == len(urls_to_archive)
 
-    # Verify the content of the calls is correct
-    called_urls = {call.args[0] for call in mock_client_instance.archive.call_args_list}
-    expected_urls = {format_archive_url(u) for u in urls_to_archive}
-    assert called_urls == expected_urls
+    # Check for membership, not order, by comparing sets.
+    passed_urls = mock_workflow.call_args[0][1]
+    assert set(passed_urls) == set(urls_to_archive)

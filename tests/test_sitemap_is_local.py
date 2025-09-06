@@ -1,4 +1,4 @@
-from wayback_machine_archiver.archiver import sitemap_is_local, LOCAL_PREFIX
+from wayback_machine_archiver.sitemaps import sitemap_is_local, LOCAL_PREFIX
 
 
 def test_local():

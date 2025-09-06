@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 from __future__ import unicode_literals
-from wayback_machine_archiver.archiver import load_local_sitemap, LOCAL_PREFIX
+from wayback_machine_archiver.sitemaps import load_local_sitemap, LOCAL_PREFIX
 import os.path
 import pytest
 
