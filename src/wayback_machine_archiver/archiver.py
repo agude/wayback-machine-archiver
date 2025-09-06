@@ -8,6 +8,7 @@ import re
 import requests
 import time
 import xml.etree.ElementTree as ET
+from xml.etree.ElementTree import ParseError
 from dotenv import load_dotenv
 from .clients import SPN2Client
 
@@ -295,7 +296,13 @@ def main():
                 remote_sitemaps.add(sitemap_url)
             sitemap_xml = download_remote_sitemap(sitemap_url, session=session)
 
-        urls_to_archive.extend(extract_pages_from_sitemap(sitemap_xml))
+        try:
+            urls_to_archive.extend(extract_pages_from_sitemap(sitemap_xml))
+        except ParseError:
+            logging.error(
+                "Failed to parse sitemap from '%s'. The content is not valid XML. Please ensure the URL points directly to a sitemap.xml file. Skipping this sitemap.",
+                sitemap_url,
+            )
 
     # Archive the sitemap as well, if requested
     if args.archive_sitemap:
