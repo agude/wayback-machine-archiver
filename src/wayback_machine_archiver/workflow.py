@@ -94,22 +94,32 @@ def _submit_next_url(
             url, rate_limit_wait=rate_limit_in_sec, api_params=api_params
         )
 
-        if job_id:
-            pending_jobs[job_id] = url
-            if url in submission_attempts:
-                del submission_attempts[url]
-        else:
-            # Handle cases where the API accepts the request but does not
-            # return a job_id, indicating a rejection.
-            logging.error(
-                "Failed to get a job_id for %s. The API may have rejected it (e.g., rate limit). This will be counted as a failure.",
-                url,
+        if not job_id:
+            # The API accepted the request but didn't provide a job_id.
+            # This is treated as a transient error to trigger a retry.
+            raise ValueError(
+                "API did not return a job_id, likely due to rate limiting."
             )
-            return "failed"
+
+        # If we get here, the submission was successful.
+        pending_jobs[job_id] = url
+        if url in submission_attempts:
+            del submission_attempts[url]
+
+    except ValueError:
+        # This block specifically catches the "no job_id" case.
+        logging.warning(
+            "Submission for %s was accepted but no job_id was returned. This can happen under high load or due to rate limits. Re-queuing for another attempt.",
+            url,
+        )
+        urls_to_process.append(url)
 
     except Exception as e:
+        # This block now catches all OTHER submission errors (e.g., network).
         logging.warning(
-            "Failed to submit URL %s: %s. Re-queuing for another attempt.", url, e
+            "Failed to submit URL %s due to a connection or API error: %s. Re-queuing for another attempt.",
+            url,
+            e,
         )
         urls_to_process.append(url)
 
