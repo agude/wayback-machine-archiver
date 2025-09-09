@@ -1,6 +1,7 @@
 import logging
 from unittest import mock
 import pytest
+import time
 from wayback_machine_archiver.workflow import (
     _submit_next_url,
     _poll_pending_jobs,
@@ -38,7 +39,10 @@ def test_submit_next_url_success():
     mock_client.submit_capture.assert_called_once_with(
         "http://example.com", rate_limit_wait=5, api_params={}
     )
-    assert pending_jobs == {"job-123": "http://example.com"}
+    # --- Check the new data structure ---
+    assert "job-123" in pending_jobs
+    assert pending_jobs["job-123"]["url"] == "http://example.com"
+    assert "submitted_at" in pending_jobs["job-123"]
     assert not urls_to_process, "URL should have been consumed from the list"
     assert "http://example.com" not in submission_attempts, (
         "Attempts tracker should be cleared on success"
@@ -150,24 +154,34 @@ def test_poll_uses_batch_and_removes_completed_jobs(mock_sleep):
         {"status": "pending", "job_id": "job-pending"},
     ]
 
+    # --- Use the new data structure for pending_jobs ---
+    now = time.time()
     pending_jobs = {
-        "job-success": "http://a.com",
-        "job-error": "http://b.com",
-        "job-pending": "http://c.com",
+        "job-success": {"url": "http://a.com", "submitted_at": now},
+        "job-error": {"url": "http://b.com", "submitted_at": now},
+        "job-pending": {"url": "http://c.com", "submitted_at": now},
     }
 
-    successful, failed, requeued = _poll_pending_jobs(mock_client, pending_jobs)
+    # --- Provide the new required arguments ---
+    successful, failed, requeued = _poll_pending_jobs(
+        mock_client,
+        pending_jobs,
+        transient_error_retries={},
+        max_transient_retries=3,
+        job_timeout_sec=7200,
+    )
 
     # Assertions
     mock_client.check_status_batch.assert_called_once_with(
         ["job-success", "job-error", "job-pending"]
     )
-    assert pending_jobs == {"job-pending": "http://c.com"}
+    # --- Check the new data structure in the assertion ---
+    assert list(pending_jobs.keys()) == ["job-pending"]
+    assert pending_jobs["job-pending"]["url"] == "http://c.com"
     assert successful == ["http://a.com"]
-    # The default error is now treated as permanent
     assert failed == ["http://b.com"]
     assert requeued == []
-    mock_sleep.assert_called_once()  # Should only sleep once per batch
+    mock_sleep.assert_called_once()
 
 
 @pytest.mark.parametrize(
@@ -215,10 +229,18 @@ def test_poll_pending_jobs_handles_errors_intelligently(
             "message": "API message",
         }
     ]
-    pending_jobs = {"job-1": "http://example.com"}
+    # --- Use the new data structure for pending_jobs ---
+    pending_jobs = {"job-1": {"url": "http://example.com", "submitted_at": time.time()}}
 
     with caplog.at_level(logging.WARNING):
-        successful, failed, requeued = _poll_pending_jobs(mock_client, pending_jobs)
+        # --- Provide the new required arguments ---
+        successful, failed, requeued = _poll_pending_jobs(
+            mock_client,
+            pending_jobs,
+            transient_error_retries={},
+            max_transient_retries=3,
+            job_timeout_sec=7200,
+        )
 
     assert not successful
     if expected_outcome == "requeue":
@@ -259,7 +281,8 @@ def test_run_archive_workflow_dynamic_polling_is_fast_and_correct(
     def submit_side_effect(urls_proc, client_arg, pending_jobs_dict, *args, **kwargs):
         url = urls_proc.pop(0)  # Remove the URL from the list
         job_id = f"job-{url}"
-        pending_jobs_dict[job_id] = url  # Add to pending jobs
+        # --- Use the new data structure ---
+        pending_jobs_dict[job_id] = {"url": url, "submitted_at": time.time()}
         return job_id
 
     mock_submit.side_effect = submit_side_effect
@@ -273,8 +296,8 @@ def test_run_archive_workflow_dynamic_polling_is_fast_and_correct(
         if poll_calls <= 3:  # Simulate pending for 3 calls
             return [], [], []  # No success, no failure, no requeue
         else:  # Simulate success on the 4th call
-            # Remove all pending jobs to terminate the loop
-            successful_urls = list(pending_jobs_dict.values())
+            # --- Extract URLs from the new data structure ---
+            successful_urls = [job["url"] for job in pending_jobs_dict.values()]
             pending_jobs_dict.clear()
             return successful_urls, [], []
 
