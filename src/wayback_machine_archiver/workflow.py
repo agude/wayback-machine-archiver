@@ -106,7 +106,7 @@ def _submit_next_url(
         if url in submission_attempts:
             del submission_attempts[url]
 
-    except ValueError:
+    except ValueError as e:
         # This block specifically catches the "no job_id" case.
         logging.warning(
             "Submission for %s was accepted but no job_id was returned. This can happen under high load or due to rate limits. Re-queuing for another attempt.",
@@ -126,7 +126,13 @@ def _submit_next_url(
     return None
 
 
-def _poll_pending_jobs(client, pending_jobs, poll_interval_sec=0.2):
+def _poll_pending_jobs(
+    client,
+    pending_jobs,
+    transient_error_retries,
+    max_transient_retries,
+    poll_interval_sec=0.2,
+):
     """
     Checks the status of all pending jobs using a single batch request.
     Returns a tuple of (successful_urls, failed_urls, requeued_urls) for completed jobs.
@@ -168,17 +174,34 @@ def _poll_pending_jobs(client, pending_jobs, poll_interval_sec=0.2):
                 api_message = status_data.get("message", "Unknown error")
 
                 if status_ext in REQUEUE_ERRORS:
-                    helpful_message = TRANSIENT_ERROR_MESSAGES.get(
-                        status_ext, "A transient error occurred."
-                    )
-                    logging.warning(
-                        "Transient error for %s: %s Re-queuing for another attempt. (API code: %s)",
-                        original_url,
-                        helpful_message,
-                        status_ext,
-                    )
-                    del pending_jobs[job_id]
-                    requeued_urls.append(original_url)
+                    # --- Check if this URL has exceeded its transient retry limit ---
+                    retry_count = transient_error_retries.get(original_url, 0) + 1
+                    transient_error_retries[original_url] = retry_count
+
+                    if retry_count > max_transient_retries:
+                        logging.error(
+                            "URL %s failed with a transient error %d times. Marking as a permanent failure. (API code: %s)",
+                            original_url,
+                            max_transient_retries,
+                            status_ext,
+                        )
+                        del pending_jobs[job_id]
+                        failed_urls.append(original_url)
+                    else:
+                        # --- This is the original re-queue logic ---
+                        helpful_message = TRANSIENT_ERROR_MESSAGES.get(
+                            status_ext, "A transient error occurred."
+                        )
+                        logging.warning(
+                            "Transient error for %s: %s Re-queuing for another attempt (%d/%d). (API code: %s)",
+                            original_url,
+                            helpful_message,
+                            retry_count,
+                            max_transient_retries,
+                            status_ext,
+                        )
+                        del pending_jobs[job_id]
+                        requeued_urls.append(original_url)
                 else:
                     # Look up the helpful message, with a fallback for unknown permanent errors.
                     helpful_message = PERMANENT_ERROR_MESSAGES.get(
@@ -214,6 +237,9 @@ def run_archive_workflow(client, urls_to_process, rate_limit_in_sec, api_params)
     """Manages the main loop for submitting and polling URLs."""
     pending_jobs = {}
     submission_attempts = {}
+    # --- Dictionary to track retries for transient polling errors ---
+    transient_error_retries = {}
+    MAX_TRANSIENT_RETRIES = 3
 
     total_urls = len(urls_to_process)
     success_count = 0
@@ -246,7 +272,10 @@ def run_archive_workflow(client, urls_to_process, rate_limit_in_sec, api_params)
             polling_wait_time = INITIAL_POLLING_WAIT
 
         if pending_jobs:
-            successful, failed, requeued = _poll_pending_jobs(client, pending_jobs)
+            # --- Pass the retry tracker and limit to the polling function ---
+            successful, failed, requeued = _poll_pending_jobs(
+                client, pending_jobs, transient_error_retries, MAX_TRANSIENT_RETRIES
+            )
             success_count += len(successful)
             failure_count += len(failed)
             if requeued:
