@@ -35,6 +35,13 @@ class SPN2Client:
         response_json = r.json()
         job_id = response_json.get("job_id")
         logging.info("Successfully submitted %s, job_id: %s", url_to_archive, job_id)
+
+        if job_id:
+            status_check_url = self.STATUS_URL_TEMPLATE.format(job_id=job_id)
+            logging.debug(
+                "Manual status check URL for %s: %s", url_to_archive, status_check_url
+            )
+
         return job_id
 
     def check_status(self, job_id):
