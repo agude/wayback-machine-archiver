@@ -325,3 +325,74 @@ def test_run_archive_workflow_dynamic_polling_is_fast_and_correct(
     # The poll side effect now runs 4 times to get to the success case
     assert mock_poll.call_count == 4
     assert not urls_to_process_list  # Ensure the initial URL list is empty
+
+
+def test_poll_gives_up_after_max_transient_retries(caplog):
+    """
+    Verify that if a URL fails with a transient error more times than allowed,
+    it is marked as a permanent failure and not re-queued.
+    """
+    mock_client = mock.Mock()
+    mock_client.check_status_batch.return_value = [
+        {
+            "status": "error",
+            "job_id": "job-1",
+            "status_ext": "error:service-unavailable",  # A transient error
+            "message": "API message",
+        }
+    ]
+
+    url = "http://example.com"
+    max_retries = 3
+
+    # Simulate that this URL has already failed 3 times with a transient error
+    transient_error_retries = {url: 3}
+    pending_jobs = {"job-1": {"url": url, "submitted_at": time.time()}}
+
+    with caplog.at_level(logging.INFO):
+        successful, failed, requeued = _poll_pending_jobs(
+            mock_client,
+            pending_jobs,
+            transient_error_retries,
+            max_transient_retries=max_retries,
+            job_timeout_sec=7200,
+        )
+
+    # Assertions
+    assert not successful
+    assert not requeued, "URL should not have been re-queued"
+    assert failed == [url], "URL should have been marked as failed"
+    assert "Marking as a permanent failure" in caplog.text
+
+
+def test_poll_fails_job_after_timeout(caplog):
+    """
+    Verify that a job that remains in a 'pending' state for longer than the
+    timeout period is marked as a failure.
+    """
+    mock_client = mock.Mock()
+    mock_client.check_status_batch.return_value = [
+        {"status": "pending", "job_id": "job-stuck"}
+    ]
+
+    url = "http://stuck.com"
+    timeout_sec = 3600  # 1 hour
+
+    # Simulate a job that was submitted long ago, well before the timeout
+    stale_timestamp = time.time() - (timeout_sec + 60)
+    pending_jobs = {"job-stuck": {"url": url, "submitted_at": stale_timestamp}}
+
+    with caplog.at_level(logging.INFO):
+        successful, failed, requeued = _poll_pending_jobs(
+            mock_client,
+            pending_jobs,
+            transient_error_retries={},
+            max_transient_retries=3,
+            job_timeout_sec=timeout_sec,
+        )
+
+    # Assertions
+    assert not successful
+    assert not requeued
+    assert failed == [url], "Stuck job should have been marked as failed"
+    assert "timed out after being pending" in caplog.text
