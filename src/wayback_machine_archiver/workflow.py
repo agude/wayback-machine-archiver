@@ -101,12 +101,12 @@ def _submit_next_url(
                 "API did not return a job_id, likely due to rate limiting."
             )
 
-        # If we get here, the submission was successful.
-        pending_jobs[job_id] = url
+        # --- Store a dictionary with URL and timestamp ---
+        pending_jobs[job_id] = {"url": url, "submitted_at": time.time()}
         if url in submission_attempts:
             del submission_attempts[url]
 
-    except ValueError as e:
+    except ValueError as _:
         # This block specifically catches the "no job_id" case.
         logging.warning(
             "Submission for %s was accepted but no job_id was returned. This can happen under high load or due to rate limits. Re-queuing for another attempt.",
@@ -131,6 +131,7 @@ def _poll_pending_jobs(
     pending_jobs,
     transient_error_retries,
     max_transient_retries,
+    job_timeout_sec,
     poll_interval_sec=0.2,
 ):
     """
@@ -160,7 +161,8 @@ def _poll_pending_jobs(
             if not job_id or job_id not in pending_jobs:
                 continue
 
-            original_url = pending_jobs[job_id]
+            # --- URL is now inside a dictionary ---
+            original_url = pending_jobs[job_id]["url"]
             status = status_data.get("status")
 
             if status == "success":
@@ -216,15 +218,29 @@ def _poll_pending_jobs(
                     del pending_jobs[job_id]
                     failed_urls.append(original_url)
             else:
-                logging.debug("Job %s (%s) is still pending...", job_id, original_url)
+                # --- Check for job timeout if status is pending ---
+                submitted_at = pending_jobs[job_id]["submitted_at"]
+                job_age = time.time() - submitted_at
+                if job_age > job_timeout_sec:
+                    logging.error(
+                        "Job for %s timed out after being pending for over %d seconds. Marking as failed.",
+                        original_url,
+                        job_timeout_sec,
+                    )
+                    del pending_jobs[job_id]
+                    failed_urls.append(original_url)
+                else:
+                    logging.debug(
+                        "Job %s (%s) is still pending...", job_id, original_url
+                    )
 
     except Exception as e:
         logging.error(
             "An exception occurred during batch polling: %s. Clearing all pending jobs for this cycle to prevent loops.",
             e,
         )
-        # In case of a total failure, we clear the pending jobs to avoid getting stuck.
-        failed_urls.extend(pending_jobs.values())
+        # --- Must extract URLs from the dictionary values ---
+        failed_urls.extend([job["url"] for job in pending_jobs.values()])
         pending_jobs.clear()
 
     # A short sleep after each batch poll to be nice to the API.
@@ -240,6 +256,8 @@ def run_archive_workflow(client, urls_to_process, rate_limit_in_sec, api_params)
     # --- Dictionary to track retries for transient polling errors ---
     transient_error_retries = {}
     MAX_TRANSIENT_RETRIES = 3
+    # --- Timeout for jobs stuck in pending state ---
+    JOB_TIMEOUT_SEC = 7200  # 2 hours
 
     total_urls = len(urls_to_process)
     success_count = 0
@@ -272,9 +290,13 @@ def run_archive_workflow(client, urls_to_process, rate_limit_in_sec, api_params)
             polling_wait_time = INITIAL_POLLING_WAIT
 
         if pending_jobs:
-            # --- Pass the retry tracker and limit to the polling function ---
+            # --- Pass job timeout to the polling function ---
             successful, failed, requeued = _poll_pending_jobs(
-                client, pending_jobs, transient_error_retries, MAX_TRANSIENT_RETRIES
+                client,
+                pending_jobs,
+                transient_error_retries,
+                MAX_TRANSIENT_RETRIES,
+                JOB_TIMEOUT_SEC,
             )
             success_count += len(successful)
             failure_count += len(failed)
