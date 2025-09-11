@@ -185,25 +185,38 @@ def test_poll_uses_batch_and_removes_completed_jobs(mock_sleep):
 
 
 @pytest.mark.parametrize(
-    "status_ext, expected_outcome, expected_log_level, expected_log_snippet",
+    "status_ext, api_message, expected_outcome, expected_log_level, expected_log_snippet",
     [
         (
             "error:service-unavailable",
+            "Service is down",
             "requeue",
             logging.WARNING,
             TRANSIENT_ERROR_MESSAGES["error:service-unavailable"],
         ),
         (
             "error:not-found",
+            "Page not found",
             "fail",
             logging.ERROR,
             PERMANENT_ERROR_MESSAGES["error:not-found"],
         ),
         (
             "error:some-new-unseen-error",
+            "A new error",
             "fail",
             logging.ERROR,
             "An unrecoverable error occurred.",
+        ),
+        # --- NEW TEST CASE ---
+        # This simulates the bug: the status_ext is a generic failure, but the
+        # message contains "RecursionError", which should trigger a requeue.
+        (
+            "error:job-failed",
+            "encoding with 'idna' codec failed (RecursionError: maximum recursion depth exceeded)",
+            "requeue",
+            logging.WARNING,
+            TRANSIENT_ERROR_MESSAGES["error:recursion-error"],
         ),
     ],
 )
@@ -212,6 +225,7 @@ def test_poll_pending_jobs_handles_errors_intelligently(
     mock_sleep,
     caplog,
     status_ext,
+    api_message,
     expected_outcome,
     expected_log_level,
     expected_log_snippet,
@@ -226,7 +240,7 @@ def test_poll_pending_jobs_handles_errors_intelligently(
             "status": "error",
             "job_id": "job-1",
             "status_ext": status_ext,
-            "message": "API message",
+            "message": api_message,
         }
     ]
     # --- Use the new data structure for pending_jobs ---
