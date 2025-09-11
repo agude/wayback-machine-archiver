@@ -17,6 +17,7 @@ REQUEUE_ERRORS = {
     "error:protocol-error",
     "error:proxy-error",
     "error:read-timeout",
+    "error:recursion-error",
     "error:service-unavailable",
     "error:soft-time-limit-exceeded",
     "error:too-many-requests",
@@ -39,6 +40,7 @@ TRANSIENT_ERROR_MESSAGES = {
     "error:protocol-error": "The HTTP connection was broken, likely due to a network issue.",
     "error:proxy-error": "An internal Internet Archive proxy error occurred.",
     "error:read-timeout": "The connection timed out while reading data from the server.",
+    "error:recursion-error": "The server encountered a temporary processing error (RecursionError).",
     "error:service-unavailable": "The Internet Archive's service is temporarily unavailable.",
     "error:soft-time-limit-exceeded": "The capture took too long and was terminated; a retry may succeed.",
     "error:too-many-requests": "The target server is rate-limiting requests.",
@@ -174,6 +176,11 @@ def _poll_pending_jobs(
             elif status == "error":
                 status_ext = status_data.get("status_ext")
                 api_message = status_data.get("message", "Unknown error")
+
+                # The API can return a generic error code for what is actually a transient
+                # server-side processing error. We check the message for this specific case.
+                if "RecursionError" in api_message:
+                    status_ext = "error:recursion-error"
 
                 if status_ext in REQUEUE_ERRORS:
                     # --- Check if this URL has exceeded its transient retry limit ---
