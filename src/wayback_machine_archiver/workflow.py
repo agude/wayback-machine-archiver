@@ -1,8 +1,10 @@
 import logging
 import time
+import requests
 
 # A set of transient errors that suggest a retry might be successful.
 REQUEUE_ERRORS = {
+    "error:verification-failed",  # Custom code for when API says success but HEAD request fails
     "error:bad-gateway",
     "error:bandwidth-limit-exceeded",
     "error:browsing-timeout",
@@ -26,6 +28,7 @@ REQUEUE_ERRORS = {
 
 # A map of transient error codes to user-friendly, explanatory messages.
 TRANSIENT_ERROR_MESSAGES = {
+    "error:verification-failed": "The API reported success, but the capture could not be verified and may not exist.",
     "error:bad-gateway": "The server reported a temporary upstream issue (Bad Gateway).",
     "error:bandwidth-limit-exceeded": "The target server has exceeded its bandwidth limit.",
     "error:browsing-timeout": "The headless browser timed out, possibly due to high server load.",
@@ -128,6 +131,35 @@ def _submit_next_url(
     return None
 
 
+def _verify_capture(session, archive_url):
+    """
+    Performs an HTTP HEAD request to verify that a capture is actually available.
+    Returns True if the URL returns a 200 OK status, False otherwise.
+    A 302 redirect is treated as a failure, as it means the exact snapshot is missing.
+    """
+    try:
+        logging.debug("Verifying capture availability for: %s", archive_url)
+        # Use allow_redirects=False to ensure we are checking the exact snapshot URL.
+        r = session.head(archive_url, allow_redirects=False, timeout=30)
+        if r.status_code == 200:
+            logging.debug("Verification successful for: %s", archive_url)
+            return True
+        else:
+            logging.warning(
+                "Verification failed for %s. Status code: %d (expected 200)",
+                archive_url,
+                r.status_code,
+            )
+            return False
+    except requests.exceptions.RequestException as e:
+        logging.warning(
+            "An exception occurred during capture verification for %s: %s. Assuming failure.",
+            archive_url,
+            e,
+        )
+        return False
+
+
 def _poll_pending_jobs(
     client,
     pending_jobs,
@@ -170,9 +202,40 @@ def _poll_pending_jobs(
             if status == "success":
                 timestamp = status_data.get("timestamp")
                 archive_url = f"https://web.archive.org/web/{timestamp}/{original_url}"
-                logging.info("Success for job %s: %s", job_id, archive_url)
-                del pending_jobs[job_id]
-                successful_urls.append(original_url)
+
+                if _verify_capture(client.session, archive_url):
+                    logging.info("Success for job %s: %s", job_id, archive_url)
+                    del pending_jobs[job_id]
+                    successful_urls.append(original_url)
+                else:
+                    # Treat verification failure as a transient error.
+                    # We'll manually trigger the same logic as if the API had sent a transient error.
+                    status_ext = "error:verification-failed"
+
+                    retry_count = transient_error_retries.get(original_url, 0) + 1
+                    transient_error_retries[original_url] = retry_count
+
+                    if retry_count > max_transient_retries:
+                        logging.error(
+                            "URL %s failed verification %d times. Marking as a permanent failure. (API code: %s)",
+                            original_url,
+                            max_transient_retries,
+                            status_ext,
+                        )
+                        del pending_jobs[job_id]
+                        failed_urls.append(original_url)
+                    else:
+                        helpful_message = TRANSIENT_ERROR_MESSAGES.get(status_ext)
+                        logging.warning(
+                            "Transient error for %s: %s Re-queuing for another attempt (%d/%d). (API code: %s)",
+                            original_url,
+                            helpful_message,
+                            retry_count,
+                            max_transient_retries,
+                            status_ext,
+                        )
+                        del pending_jobs[job_id]
+                        requeued_urls.append(original_url)
             elif status == "error":
                 status_ext = status_data.get("status_ext")
                 api_message = status_data.get("message", "Unknown error")

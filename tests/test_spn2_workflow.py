@@ -153,6 +153,10 @@ def test_poll_uses_batch_and_removes_completed_jobs(mock_sleep):
         {"status": "error", "job_id": "job-error", "message": "Too many redirects."},
         {"status": "pending", "job_id": "job-pending"},
     ]
+    # Mock a successful verification for the 'success' job
+    mock_head_response = mock.Mock()
+    mock_head_response.status_code = 200
+    mock_client.session.head.return_value = mock_head_response
 
     # --- Use the new data structure for pending_jobs ---
     now = time.time()
@@ -175,6 +179,11 @@ def test_poll_uses_batch_and_removes_completed_jobs(mock_sleep):
     mock_client.check_status_batch.assert_called_once_with(
         ["job-success", "job-error", "job-pending"]
     )
+    # Assert that the verification HEAD request was made correctly
+    expected_archive_url = "https://web.archive.org/web/20250101/http://a.com"
+    mock_client.session.head.assert_called_once_with(
+        expected_archive_url, allow_redirects=False, timeout=30
+    )
     # --- Check the new data structure in the assertion ---
     assert list(pending_jobs.keys()) == ["job-pending"]
     assert pending_jobs["job-pending"]["url"] == "http://c.com"
@@ -182,6 +191,83 @@ def test_poll_uses_batch_and_removes_completed_jobs(mock_sleep):
     assert failed == ["http://b.com"]
     assert requeued == []
     mock_sleep.assert_called_once()
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_poll_verification_failure_requeues_job(mock_sleep, caplog):
+    """
+    Verify that if a capture's verification fails (e.g., returns 404 or 302),
+    it is re-queued as a transient error.
+    """
+    mock_client = mock.Mock()
+    mock_client.check_status_batch.return_value = [
+        {"status": "success", "job_id": "job-verify-fail", "timestamp": "20250101"}
+    ]
+
+    # Mock a failed verification (e.g., 404 or 302)
+    mock_head_response = mock.Mock()
+    mock_head_response.status_code = 404
+    mock_client.session.head.return_value = mock_head_response
+
+    url = "http://verify-fail.com"
+    pending_jobs = {"job-verify-fail": {"url": url, "submitted_at": time.time()}}
+    transient_error_retries = {}
+
+    with caplog.at_level(logging.INFO):
+        successful, failed, requeued = _poll_pending_jobs(
+            mock_client,
+            pending_jobs,
+            transient_error_retries,
+            max_transient_retries=3,
+            job_timeout_sec=7200,
+        )
+
+    # Assertions
+    assert not successful
+    assert not failed
+    assert requeued == [url]
+    assert transient_error_retries == {url: 1}
+    assert "Verification failed for" in caplog.text
+    assert "Re-queuing for another attempt" in caplog.text
+    assert "error:verification-failed" in caplog.text
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_poll_verification_failure_gives_up_after_max_retries(mock_sleep, caplog):
+    """
+    Verify that if a capture fails verification too many times, it is marked
+    as a permanent failure.
+    """
+    mock_client = mock.Mock()
+    mock_client.check_status_batch.return_value = [
+        {"status": "success", "job_id": "job-verify-fail", "timestamp": "20250101"}
+    ]
+
+    # Mock a failed verification
+    mock_head_response = mock.Mock()
+    mock_head_response.status_code = 404
+    mock_client.session.head.return_value = mock_head_response
+
+    url = "http://verify-fail.com"
+    max_retries = 3
+    # Simulate that this URL has already failed verification 3 times
+    transient_error_retries = {url: 3}
+    pending_jobs = {"job-verify-fail": {"url": url, "submitted_at": time.time()}}
+
+    with caplog.at_level(logging.INFO):
+        successful, failed, requeued = _poll_pending_jobs(
+            mock_client,
+            pending_jobs,
+            transient_error_retries,
+            max_transient_retries=max_retries,
+            job_timeout_sec=7200,
+        )
+
+    # Assertions
+    assert not successful
+    assert not requeued
+    assert failed == [url]
+    assert "failed verification 3 times. Marking as a permanent failure" in caplog.text
 
 
 @pytest.mark.parametrize(
