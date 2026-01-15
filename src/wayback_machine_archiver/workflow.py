@@ -1,5 +1,10 @@
+from __future__ import annotations
+
 import logging
 import time
+from typing import Any, TypedDict
+
+from .clients import SPN2Client
 
 # A set of transient errors that suggest a retry might be successful.
 REQUEUE_ERRORS = {
@@ -68,16 +73,30 @@ PERMANENT_ERROR_MESSAGES = {
     "error:unauthorized": "The page requires a login (401 Unauthorized). To save the login/error page, use the --capture-all flag.",
 }
 
+# Workflow configuration constants
+MAX_TRANSIENT_RETRIES = 3
+JOB_TIMEOUT_SEC = 7200  # 2 hours
+INITIAL_POLLING_WAIT = 5
+MAX_POLLING_WAIT = 60
+POLLING_BACKOFF_FACTOR = 1.5
+
+
+class PendingJob(TypedDict):
+    """Type for pending job entries."""
+
+    url: str
+    submitted_at: float
+
 
 def _submit_next_url(
-    urls_to_process,
-    client,
-    pending_jobs,
-    rate_limit_in_sec,
-    submission_attempts,
-    api_params,
-    max_retries=3,
-):
+    urls_to_process: list[str],
+    client: SPN2Client,
+    pending_jobs: dict[str, PendingJob],
+    rate_limit_in_sec: float,
+    submission_attempts: dict[str, int],
+    api_params: dict[str, str | int],
+    max_retries: int = 3,
+) -> str | None:
     """
     Pops the next URL, submits it, and adds its job_id to pending_jobs.
     Returns 'failed' on a definitive failure, otherwise None.
@@ -108,7 +127,7 @@ def _submit_next_url(
         if url in submission_attempts:
             del submission_attempts[url]
 
-    except ValueError as _:
+    except ValueError:
         # This block specifically catches the "no job_id" case.
         logging.warning(
             "Submission for %s was accepted but no job_id was returned. This can happen under high load or due to rate limits. Re-queuing for another attempt.",
@@ -129,20 +148,20 @@ def _submit_next_url(
 
 
 def _poll_pending_jobs(
-    client,
-    pending_jobs,
-    transient_error_retries,
-    max_transient_retries,
-    job_timeout_sec,
-    poll_interval_sec=0.2,
-):
+    client: SPN2Client,
+    pending_jobs: dict[str, PendingJob],
+    transient_error_retries: dict[str, int],
+    max_transient_retries: int,
+    job_timeout_sec: float,
+    poll_interval_sec: float = 0.2,
+) -> tuple[list[str], list[str], list[str]]:
     """
     Checks the status of all pending jobs using a single batch request.
     Returns a tuple of (successful_urls, failed_urls, requeued_urls) for completed jobs.
     """
-    successful_urls = []
-    failed_urls = []
-    requeued_urls = []
+    successful_urls: list[str] = []
+    failed_urls: list[str] = []
+    requeued_urls: list[str] = []
 
     # Get all job IDs that need to be checked.
     job_ids_to_check = list(pending_jobs.keys())
@@ -152,7 +171,9 @@ def _poll_pending_jobs(
     try:
         # Make a single batch request for all pending jobs.
         # The API is expected to return a list of status objects.
-        batch_statuses = client.check_status_batch(job_ids_to_check)
+        batch_statuses: list[dict[str, Any]] = client.check_status_batch(
+            job_ids_to_check
+        )
 
         # It's possible the API returns a single object if only one job was queried.
         if not isinstance(batch_statuses, list):
@@ -174,7 +195,7 @@ def _poll_pending_jobs(
                 del pending_jobs[job_id]
                 successful_urls.append(original_url)
             elif status == "error":
-                status_ext = status_data.get("status_ext")
+                status_ext: str = status_data.get("status_ext", "error:unknown")
                 api_message = status_data.get("message", "Unknown error")
 
                 # The API can return a generic error code for what is actually a transient
@@ -256,24 +277,20 @@ def _poll_pending_jobs(
     return successful_urls, failed_urls, requeued_urls
 
 
-def run_archive_workflow(client, urls_to_process, rate_limit_in_sec, api_params):
+def run_archive_workflow(
+    client: SPN2Client,
+    urls_to_process: list[str],
+    rate_limit_in_sec: float,
+    api_params: dict[str, str | int],
+) -> None:
     """Manages the main loop for submitting and polling URLs."""
-    pending_jobs = {}
-    submission_attempts = {}
-    # --- Dictionary to track retries for transient polling errors ---
-    transient_error_retries = {}
-    MAX_TRANSIENT_RETRIES = 3
-    # --- Timeout for jobs stuck in pending state ---
-    JOB_TIMEOUT_SEC = 7200  # 2 hours
+    pending_jobs: dict[str, PendingJob] = {}
+    submission_attempts: dict[str, int] = {}
+    transient_error_retries: dict[str, int] = {}
 
     total_urls = len(urls_to_process)
     success_count = 0
     failure_count = 0
-
-    # --- Variables for dynamic polling ---
-    INITIAL_POLLING_WAIT = 5
-    MAX_POLLING_WAIT = 60
-    POLLING_BACKOFF_FACTOR = 1.5
     polling_wait_time = INITIAL_POLLING_WAIT
 
     logging.info(

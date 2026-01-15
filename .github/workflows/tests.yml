@@ -3,6 +3,29 @@ name: Tests 🧪
 on: [push, pull_request]
 
 jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    name: Type Check 🔍
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python 🐍
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Set up uv 💨
+      uses: astral-sh/setup-uv@v6
+      with:
+        uv-version: latest
+
+    - name: Install dependencies 🏗
+      run: uv pip install --system -e ".[dev]" mypy types-requests
+
+    - name: Run mypy 🔍
+      run: mypy src/wayback_machine_archiver --strict
+
   test:
     runs-on: ubuntu-latest
     strategy:

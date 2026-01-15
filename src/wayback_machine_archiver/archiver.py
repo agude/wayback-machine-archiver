@@ -1,19 +1,22 @@
+from __future__ import annotations
+
 import logging
 import os
 import random
 import sys
+
 import requests
+from dotenv import load_dotenv
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from dotenv import load_dotenv
 
-from .clients import SPN2Client
 from .cli import create_parser
+from .clients import SPN2Client
 from .sitemaps import process_sitemaps
 from .workflow import run_archive_workflow
 
 
-def main():
+def main() -> None:
     """Main entry point for the archiver script."""
     parser = create_parser()
     args = parser.parse_args()
@@ -46,7 +49,7 @@ def main():
         args.rate_limit_in_sec = MIN_WAIT_SEC
 
     # --- Build API parameters dictionary from CLI args ---
-    api_params = {}
+    api_params: dict[str, str | int] = {}
     if args.capture_all:
         api_params["capture_all"] = "1"
     if args.capture_outlinks:
@@ -74,7 +77,7 @@ def main():
         logging.info(f"Using the following API parameters: {api_params}")
 
     # --- Gather all URLs to archive ---
-    urls_to_archive = set()
+    urls_to_archive: set[str] = set()
     logging.info("Gathering URLs to archive...")
     if args.urls:
         logging.info(f"Found {len(args.urls)} URLs from command-line arguments.")
@@ -99,7 +102,7 @@ def main():
             logging.info(f"Found {len(urls_from_file)} URLs from file: {args.file}")
             urls_to_archive.update(urls_from_file)
 
-    urls_to_process = list(urls_to_archive)
+    urls_to_process: list[str] = list(urls_to_archive)
     if not urls_to_process:
         logging.warning("No unique URLs found to archive. Exiting.")
         return

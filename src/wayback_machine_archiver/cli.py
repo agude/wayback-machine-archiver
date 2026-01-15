@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import argparse
 import logging
+
 from . import __version__
 
 LOCAL_PREFIX = "file://"
 
 
-def create_parser():
+def create_parser() -> argparse.ArgumentParser:
     """Creates and returns the argparse parser."""
     parser = argparse.ArgumentParser(
         prog="archiver",
