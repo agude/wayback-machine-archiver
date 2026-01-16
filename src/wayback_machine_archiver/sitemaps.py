@@ -44,7 +44,7 @@ def extract_urls_from_sitemap(sitemap_bytes: bytes) -> set[str]:
     """Parse XML sitemap bytes and extract URLs."""
     root = ET.fromstring(sitemap_bytes)
     namespace = get_namespace(root)
-    loc_nodes = root.findall(".//{}loc".format(namespace))
+    loc_nodes = root.findall(f".//{namespace}loc")
     return {node.text for node in loc_nodes if node.text is not None}
 
 
