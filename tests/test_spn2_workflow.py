@@ -72,9 +72,10 @@ def test_submit_next_url_failure_requeues_and_tracks_attempt():
 
     # Assertions
     assert not pending_jobs, "No job should have been added on failure"
-    assert urls_to_process == ["http://b.com", "http://a.com"], (
-        "Failed URL should be at the end of the list"
-    )
+    assert urls_to_process == [
+        "http://b.com",
+        "http://a.com",
+    ], "Failed URL should be at the end of the list"
     assert submission_attempts == {"http://a.com": 1}, (
         "Attempt count should be incremented"
     )

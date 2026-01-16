@@ -22,23 +22,23 @@ SITEMAP = """<?xml version="1.0" encoding="UTF-8"?>
 def test_load_local_file_without_prefix(tmpdir):
     # Write a file using pytest's tmpdir so we can read it back
     file = tmpdir.join("sitemap.xml")
-    file.write(SITEMAP)
+    file.write_binary(SITEMAP.encode("UTF-8"))
     file_path = os.path.join(file.dirname, file.basename)
 
     # Read the file
     read_contents = load_local_sitemap(file_path)
-    assert read_contents == SITEMAP
+    assert read_contents == SITEMAP.encode("UTF-8")
 
 
 def test_load_local_file_with_prefix(tmpdir):
     # Write a file using pytest's tmpdir so we can read it back
     file = tmpdir.join("sitemap.xml")
-    file.write(SITEMAP)
+    file.write_binary(SITEMAP.encode("UTF-8"))
     file_path = os.path.join(LOCAL_PREFIX, file.dirname, file.basename)
 
     # Read the file
     read_contents = load_local_sitemap(file_path)
-    assert read_contents == SITEMAP
+    assert read_contents == SITEMAP.encode("UTF-8")
 
 
 def test_file_does_not_exist(tmpdir):

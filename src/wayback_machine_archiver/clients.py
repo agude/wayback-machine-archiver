@@ -1,5 +1,9 @@
+from __future__ import annotations
+
 import logging
 import time
+from typing import Any
+
 import requests
 
 
@@ -12,7 +16,12 @@ class SPN2Client:
     STATUS_URL = "https://web.archive.org/save/status"
     STATUS_URL_TEMPLATE = "https://web.archive.org/save/status/{job_id}"
 
-    def __init__(self, session, access_key, secret_key):
+    def __init__(
+        self,
+        session: requests.Session,
+        access_key: str,
+        secret_key: str,
+    ) -> None:
         self.session = session
         self.is_authenticated = True  # Always true now
 
@@ -20,20 +29,25 @@ class SPN2Client:
         auth_header = f"LOW {access_key}:{secret_key}"
         self.session.headers.update({"Authorization": auth_header})
 
-    def submit_capture(self, url_to_archive, rate_limit_wait, api_params=None):
+    def submit_capture(
+        self,
+        url_to_archive: str,
+        rate_limit_wait: float,
+        api_params: dict[str, str | int] | None = None,
+    ) -> str | None:
         """Submits a capture request to the SPN2 API."""
         if rate_limit_wait > 0:
             logging.debug("Sleeping for %s seconds", rate_limit_wait)
             time.sleep(rate_limit_wait)
         logging.info("Submitting %s to SPN2", url_to_archive)
-        data = {"url": url_to_archive}
+        data: dict[str, str | int] = {"url": url_to_archive}
         if api_params:
             data.update(api_params)
 
         r = self.session.post(self.SAVE_URL, data=data)
         r.raise_for_status()
         response_json = r.json()
-        job_id = response_json.get("job_id")
+        job_id: str | None = response_json.get("job_id")
         logging.info("Successfully submitted %s, job_id: %s", url_to_archive, job_id)
 
         if job_id:
@@ -44,18 +58,20 @@ class SPN2Client:
 
         return job_id
 
-    def check_status(self, job_id):
+    def check_status(self, job_id: str) -> dict[str, Any]:
         """Checks the status of a single capture job."""
         status_url = self.STATUS_URL_TEMPLATE.format(job_id=job_id)
         logging.debug("Checking status for single job_id: %s", job_id)
         r = self.session.get(status_url)
         r.raise_for_status()
-        return r.json()
+        result: dict[str, Any] = r.json()
+        return result
 
-    def check_status_batch(self, job_ids):
+    def check_status_batch(self, job_ids: list[str]) -> list[dict[str, Any]]:
         """Checks the status of multiple capture jobs in a single request."""
         logging.debug("Checking status for %d jobs in a batch.", len(job_ids))
         data = {"job_ids": ",".join(job_ids)}
         r = self.session.post(self.STATUS_URL, data=data)
         r.raise_for_status()
-        return r.json()
+        result: list[dict[str, Any]] = r.json()
+        return result
