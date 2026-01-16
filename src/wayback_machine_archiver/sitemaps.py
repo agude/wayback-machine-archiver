@@ -9,6 +9,8 @@ import requests
 
 LOCAL_PREFIX = "file://"
 
+__all__ = ["LOCAL_PREFIX", "process_sitemaps"]
+
 
 def get_namespace(element: Element) -> str:
     """Extract the namespace from an XML element."""

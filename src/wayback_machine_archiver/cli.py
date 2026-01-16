@@ -4,8 +4,7 @@ import argparse
 import logging
 
 from . import __version__
-
-LOCAL_PREFIX = "file://"
+from .sitemaps import LOCAL_PREFIX
 
 
 def create_parser() -> argparse.ArgumentParser:
