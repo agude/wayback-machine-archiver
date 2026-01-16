@@ -15,6 +15,25 @@ from .clients import SPN2Client
 from .sitemaps import process_sitemaps
 from .workflow import run_archive_workflow
 
+_DEFAULT_RETRY_COUNT = 5
+
+
+def _create_session_with_retries(
+    backoff_factor: float = 1,
+    total_retries: int = _DEFAULT_RETRY_COUNT,
+) -> requests.Session:
+    """Create a requests session with retry logic for transient errors."""
+    session = requests.Session()
+    retries = Retry(
+        total=total_retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=[500, 502, 503, 504, 520],
+        allowed_methods=["HEAD", "GET", "POST", "PUT", "DELETE", "OPTIONS", "TRACE"],
+    )
+    session.mount("https://", HTTPAdapter(max_retries=retries))
+    session.mount("http://", HTTPAdapter(max_retries=retries))
+    return session
+
 
 def main() -> None:
     """Main entry point for the archiver script."""
@@ -83,12 +102,7 @@ def main() -> None:
         logging.info(f"Found {len(args.urls)} URLs from command-line arguments.")
         urls_to_archive.update(args.urls)
     if args.sitemaps:
-        session = requests.Session()
-        retries = Retry(
-            total=5, backoff_factor=1, status_forcelist=[500, 502, 503, 504]
-        )
-        session.mount("https://", HTTPAdapter(max_retries=retries))
-        session.mount("http://", HTTPAdapter(max_retries=retries))
+        session = _create_session_with_retries()
         logging.info(f"Processing {len(args.sitemaps)} sitemap(s)...")
         sitemap_urls = process_sitemaps(args.sitemaps, session)
         logging.info(f"Found {len(sitemap_urls)} URLs from sitemaps.")
@@ -113,15 +127,7 @@ def main() -> None:
 
     # --- Run the archiving workflow ---
     logging.info("SPN2 credentials found. Using authenticated API workflow.")
-    client_session = requests.Session()
-    retries = Retry(
-        total=5,
-        backoff_factor=args.rate_limit_in_sec,
-        status_forcelist=[500, 502, 503, 504, 520],
-        allowed_methods=["HEAD", "GET", "POST", "PUT", "DELETE", "OPTIONS", "TRACE"],
-    )
-    client_session.mount("https://", HTTPAdapter(max_retries=retries))
-    client_session.mount("http://", HTTPAdapter(max_retries=retries))
+    client_session = _create_session_with_retries(backoff_factor=args.rate_limit_in_sec)
 
     client = SPN2Client(
         session=client_session, access_key=access_key, secret_key=secret_key
