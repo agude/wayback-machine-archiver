@@ -31,6 +31,7 @@ def _create_session_with_retries(
         status_forcelist=[500, 502, 503, 504, 520],
         allowed_methods=["HEAD", "GET", "POST", "PUT", "DELETE", "OPTIONS", "TRACE"],
     )
+    # Mount to both protocols to ensure retry logic applies regardless of target scheme
     session.mount("https://", HTTPAdapter(max_retries=retries))
     session.mount("http://", HTTPAdapter(max_retries=retries))
     return session

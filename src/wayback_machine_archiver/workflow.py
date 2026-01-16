@@ -137,8 +137,9 @@ def _submit_next_url(
         )
         urls_to_process.append(url)
 
-    except requests.exceptions.RequestException as e:
-        # Catches network errors: ConnectionError, Timeout, HTTPError, etc.
+    except (requests.exceptions.RequestException, ValueError) as e:
+        # RequestException: network errors (ConnectionError, Timeout, HTTPError, etc.)
+        # ValueError: malformed API response (e.g., HTML error page instead of JSON)
         logging.warning(
             "Failed to submit URL %s due to a connection or API error: %s. Re-queuing for another attempt.",
             url,
