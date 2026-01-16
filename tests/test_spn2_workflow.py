@@ -1,7 +1,9 @@
+import copy
 import logging
-from unittest import mock
-import pytest
 import time
+from unittest import mock
+
+import pytest
 from wayback_machine_archiver.workflow import (
     _submit_next_url,
     _poll_pending_jobs,
@@ -411,3 +413,131 @@ def test_poll_fails_job_after_timeout(caplog):
     assert not requeued
     assert failed == [url], "Stuck job should have been marked as failed"
     assert "timed out after being pending" in caplog.text
+
+
+# --- Tests for unknown job_id handling in batch responses ---
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_poll_skips_unknown_job_ids_from_batch_response(mock_sleep, caplog):
+    """Verify that unknown job_ids in batch responses are silently skipped."""
+    mock_client = mock.Mock()
+
+    # API returns 3 jobs: one unknown, one success, one still pending
+    mock_client.check_status_batch.return_value = [
+        {"status": "success", "job_id": "unknown-job-not-in-pending", "timestamp": "20250115"},
+        {"status": "success", "job_id": "known-job-1", "timestamp": "20250115"},
+        {"status": "pending", "job_id": "known-job-2"},
+    ]
+
+    now = time.time()
+    pending_jobs = {
+        "known-job-1": {"url": "http://a.com", "submitted_at": now},
+        "known-job-2": {"url": "http://b.com", "submitted_at": now},
+    }
+
+    with caplog.at_level(logging.DEBUG):
+        successful, failed, requeued = _poll_pending_jobs(
+            mock_client,
+            pending_jobs,
+            transient_error_retries={},
+            max_transient_retries=3,
+            job_timeout_sec=7200,
+        )
+
+    # The unknown job should be ignored - only known-job-1 is marked successful
+    assert successful == ["http://a.com"]
+    assert failed == []
+    assert requeued == []
+
+    # known-job-1 should be removed, known-job-2 should remain pending
+    assert "known-job-1" not in pending_jobs
+    assert "known-job-2" in pending_jobs
+    assert pending_jobs["known-job-2"]["url"] == "http://b.com"
+
+    # Verify the unknown job was silently skipped (no ERROR logged for it)
+    error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    for record in error_records:
+        assert "unknown-job-not-in-pending" not in record.message
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_poll_handles_missing_job_id_field_in_response(mock_sleep, caplog):
+    """
+    Verify that if the batch API returns a status object without a job_id
+    field, it is silently skipped.
+    """
+    mock_client = mock.Mock()
+
+    # API returns one object with no job_id field
+    mock_client.check_status_batch.return_value = [
+        {"status": "success", "timestamp": "20250115"},  # Missing job_id
+        {"status": "success", "job_id": "valid-job", "timestamp": "20250115"},
+    ]
+
+    now = time.time()
+    pending_jobs = {
+        "valid-job": {"url": "http://valid.com", "submitted_at": now},
+    }
+
+    with caplog.at_level(logging.DEBUG):
+        successful, failed, requeued = _poll_pending_jobs(
+            mock_client,
+            pending_jobs,
+            transient_error_retries={},
+            max_transient_retries=3,
+            job_timeout_sec=7200,
+        )
+
+    # Only the valid job should be processed
+    assert successful == ["http://valid.com"]
+    assert failed == []
+    assert requeued == []
+    assert not pending_jobs  # Should be empty now
+
+    # Verify no ERROR was logged for the missing job_id
+    error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert len(error_records) == 0
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_poll_handles_all_unknown_job_ids(mock_sleep, caplog):
+    """
+    Verify that if the batch API returns only unknown job_ids,
+    the pending_jobs dict remains unchanged and no errors occur.
+    """
+    mock_client = mock.Mock()
+
+    # API returns only unknown job_ids
+    mock_client.check_status_batch.return_value = [
+        {"status": "success", "job_id": "unknown-1", "timestamp": "20250115"},
+        {"status": "error", "job_id": "unknown-2", "message": "Not found"},
+    ]
+
+    now = time.time()
+    original_pending = {
+        "real-job-1": {"url": "http://real1.com", "submitted_at": now},
+        "real-job-2": {"url": "http://real2.com", "submitted_at": now},
+    }
+    pending_jobs = copy.deepcopy(original_pending)
+
+    with caplog.at_level(logging.DEBUG):
+        successful, failed, requeued = _poll_pending_jobs(
+            mock_client,
+            pending_jobs,
+            transient_error_retries={},
+            max_transient_retries=3,
+            job_timeout_sec=7200,
+        )
+
+    # No jobs should be processed
+    assert successful == []
+    assert failed == []
+    assert requeued == []
+
+    # pending_jobs should be unchanged
+    assert pending_jobs == original_pending
+
+    # Verify no ERROR was logged for the unknown job_ids
+    error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert len(error_records) == 0
