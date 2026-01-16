@@ -58,15 +58,6 @@ class SPN2Client:
 
         return job_id
 
-    def check_status(self, job_id: str) -> dict[str, Any]:
-        """Checks the status of a single capture job."""
-        status_url = self.STATUS_URL_TEMPLATE.format(job_id=job_id)
-        logging.debug("Checking status for single job_id: %s", job_id)
-        r = self.session.get(status_url)
-        r.raise_for_status()
-        result: dict[str, Any] = r.json()
-        return result
-
     def check_status_batch(self, job_ids: list[str]) -> list[dict[str, Any]]:
         """Checks the status of multiple capture jobs in a single request."""
         logging.debug("Checking status for %d jobs in a batch.", len(job_ids))
