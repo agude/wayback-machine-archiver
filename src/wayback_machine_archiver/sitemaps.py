@@ -72,7 +72,9 @@ def process_sitemaps(
                 "Failed to parse sitemap from '%s'. The content is not valid XML. Please ensure the URL points directly to a sitemap.xml file. Skipping this sitemap.",
                 sitemap_url,
             )
-        except Exception as e:
+        except (requests.exceptions.RequestException, OSError) as e:
+            # RequestException: network errors for remote sitemaps
+            # OSError: file read errors for local sitemaps
             logging.error(
                 "An error occurred while processing sitemap '%s': %s. Skipping.",
                 sitemap_url,

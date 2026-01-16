@@ -4,6 +4,8 @@ import logging
 import time
 from typing import Any, TypedDict
 
+import requests
+
 from .clients import SPN2Client
 
 # A set of transient errors that suggest a retry might be successful.
@@ -135,8 +137,8 @@ def _submit_next_url(
         )
         urls_to_process.append(url)
 
-    except Exception as e:
-        # This block now catches all OTHER submission errors (e.g., network).
+    except requests.exceptions.RequestException as e:
+        # Catches network errors: ConnectionError, Timeout, HTTPError, etc.
         logging.warning(
             "Failed to submit URL %s due to a connection or API error: %s. Re-queuing for another attempt.",
             url,

@@ -4,6 +4,8 @@ import time
 from unittest import mock
 
 import pytest
+import requests
+
 from wayback_machine_archiver.workflow import (
     _submit_next_url,
     _poll_pending_jobs,
@@ -57,7 +59,9 @@ def test_submit_next_url_failure_requeues_and_tracks_attempt():
     and increments its attempt count.
     """
     mock_client = mock.Mock()
-    mock_client.submit_capture.side_effect = Exception("API Error")
+    mock_client.submit_capture.side_effect = requests.exceptions.ConnectionError(
+        "API Error"
+    )
 
     urls_to_process = ["http://a.com", "http://b.com"]
     pending_jobs = {}
