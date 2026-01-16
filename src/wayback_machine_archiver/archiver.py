@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import sys
+from urllib.parse import urlparse
 
 import requests
 from dotenv import load_dotenv
@@ -33,6 +34,16 @@ def _create_session_with_retries(
     session.mount("https://", HTTPAdapter(max_retries=retries))
     session.mount("http://", HTTPAdapter(max_retries=retries))
     return session
+
+
+def _is_valid_url(url: str) -> bool:
+    """Check if a URL has a valid structure for archiving."""
+    try:
+        parsed = urlparse(url)
+        # Must have http or https scheme and a network location (domain)
+        return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+    except ValueError:
+        return False
 
 
 def main() -> None:
@@ -115,6 +126,16 @@ def main() -> None:
             urls_from_file = {line.strip() for line in f if line.strip()}
             logging.info(f"Found {len(urls_from_file)} URLs from file: {args.file}")
             urls_to_archive.update(urls_from_file)
+
+    # --- Validate URLs ---
+    invalid_urls = {url for url in urls_to_archive if not _is_valid_url(url)}
+    if invalid_urls:
+        for url in invalid_urls:
+            logging.warning(
+                "Skipping invalid URL '%s': must have http:// or https:// scheme.",
+                url,
+            )
+        urls_to_archive -= invalid_urls
 
     urls_to_process: list[str] = list(urls_to_archive)
     if not urls_to_process:

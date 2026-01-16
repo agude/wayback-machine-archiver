@@ -6,7 +6,7 @@ from unittest import mock
 
 import pytest
 
-from wayback_machine_archiver.archiver import main
+from wayback_machine_archiver.archiver import _is_valid_url, main
 from wayback_machine_archiver.cli import create_parser
 
 # Test constants
@@ -186,3 +186,58 @@ def test_api_option_flags_are_parsed_correctly():
     assert args.js_behavior_timeout == 25
     assert args.capture_cookie == "name=value"
     assert args.use_user_agent == "MyTestAgent/1.0"
+
+
+# --- Tests for URL validation ---
+
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        ("https://example.com", True),
+        ("http://example.com/page", True),
+        ("https://example.com/path?query=1", True),
+        ("http://localhost:8080", True),
+        ("ftp://example.com", False),  # Wrong scheme
+        ("example.com", False),  # No scheme
+        ("not a url", False),  # Invalid
+        ("", False),  # Empty
+        ("://missing-scheme.com", False),  # Missing scheme
+        ("https://", False),  # No netloc
+    ],
+    ids=[
+        "https_valid",
+        "http_with_path",
+        "https_with_query",
+        "localhost_with_port",
+        "ftp_invalid_scheme",
+        "no_scheme",
+        "not_a_url",
+        "empty_string",
+        "missing_scheme",
+        "no_netloc",
+    ],
+)
+def test_is_valid_url(url, expected):
+    """Verify URL validation accepts http/https and rejects invalid URLs."""
+    assert _is_valid_url(url) == expected
+
+
+@mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow")
+def test_invalid_urls_are_filtered_with_warning(
+    mock_workflow, mock_sitemaps, cli_args, mock_credentials, caplog
+):
+    """Verify that invalid URLs are filtered out and logged as warnings."""
+    cli_args(["archiver", "https://valid.com", "not-a-url", "ftp://wrong.com"])
+
+    with caplog.at_level(logging.WARNING):
+        main()
+
+    # Only the valid URL should be passed to the workflow
+    passed_urls = mock_workflow.call_args[0][1]
+    assert set(passed_urls) == {"https://valid.com"}
+
+    # Invalid URLs should be logged as warnings
+    assert "not-a-url" in caplog.text
+    assert "ftp://wrong.com" in caplog.text
