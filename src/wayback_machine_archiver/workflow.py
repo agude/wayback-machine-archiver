@@ -4,6 +4,8 @@ import logging
 import time
 from typing import Any, TypedDict
 
+import requests
+
 from .clients import SPN2Client
 
 # A set of transient errors that suggest a retry might be successful.
@@ -135,8 +137,9 @@ def _submit_next_url(
         )
         urls_to_process.append(url)
 
-    except Exception as e:
-        # This block now catches all OTHER submission errors (e.g., network).
+    except (requests.exceptions.RequestException, ValueError) as e:
+        # RequestException: network errors (ConnectionError, Timeout, HTTPError, etc.)
+        # ValueError: malformed API response (e.g., HTML error page instead of JSON)
         logging.warning(
             "Failed to submit URL %s due to a connection or API error: %s. Re-queuing for another attempt.",
             url,
@@ -181,7 +184,11 @@ def _poll_pending_jobs(
 
         for status_data in batch_statuses:
             job_id = status_data.get("job_id")
-            if not job_id or job_id not in pending_jobs:
+            if not job_id:
+                logging.debug("Status response missing job_id: %s", status_data)
+                continue
+            if job_id not in pending_jobs:
+                logging.debug("Received status for unknown job_id: %s", job_id)
                 continue
 
             # --- URL is now inside a dictionary ---

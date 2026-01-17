@@ -4,8 +4,7 @@ import argparse
 import logging
 
 from . import __version__
-
-LOCAL_PREFIX = "file://"
+from .sitemaps import LOCAL_PREFIX
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -17,7 +16,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--version",
         action="version",
-        version="%(prog)s {version}".format(version=__version__),
+        version=f"%(prog)s {__version__}",
     )
     parser.add_argument(
         "urls",
@@ -34,9 +33,7 @@ def create_parser() -> argparse.ArgumentParser:
         "--sitemaps",
         nargs="+",
         default=[],
-        help="Specifies one or more URIs to sitemaps listing pages to archive. Local paths must be prefixed with '{f}'.".format(
-            f=LOCAL_PREFIX
-        ),
+        help=f"Specifies one or more URIs to sitemaps listing pages to archive. Local paths must be prefixed with '{LOCAL_PREFIX}'.",
         required=False,
     )
     parser.add_argument(

@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import sys
+from urllib.parse import urlparse
 
 import requests
 from dotenv import load_dotenv
@@ -14,6 +15,36 @@ from .cli import create_parser
 from .clients import SPN2Client
 from .sitemaps import process_sitemaps
 from .workflow import run_archive_workflow
+
+_DEFAULT_RETRY_COUNT = 5
+
+
+def _create_session_with_retries(
+    backoff_factor: float = 1,
+    total_retries: int = _DEFAULT_RETRY_COUNT,
+) -> requests.Session:
+    """Create a requests session with retry logic for transient errors."""
+    session = requests.Session()
+    retries = Retry(
+        total=total_retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=[500, 502, 503, 504, 520],
+        allowed_methods=["HEAD", "GET", "POST", "PUT", "DELETE", "OPTIONS", "TRACE"],
+    )
+    # Mount to both protocols to ensure retry logic applies regardless of target scheme
+    session.mount("https://", HTTPAdapter(max_retries=retries))
+    session.mount("http://", HTTPAdapter(max_retries=retries))
+    return session
+
+
+def _is_valid_url(url: str) -> bool:
+    """Check if a URL has a valid structure for archiving."""
+    try:
+        parsed = urlparse(url)
+        # Must have http or https scheme and a network location (domain)
+        return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+    except ValueError:
+        return False
 
 
 def main() -> None:
@@ -83,12 +114,7 @@ def main() -> None:
         logging.info(f"Found {len(args.urls)} URLs from command-line arguments.")
         urls_to_archive.update(args.urls)
     if args.sitemaps:
-        session = requests.Session()
-        retries = Retry(
-            total=5, backoff_factor=1, status_forcelist=[500, 502, 503, 504]
-        )
-        session.mount("https://", HTTPAdapter(max_retries=retries))
-        session.mount("http://", HTTPAdapter(max_retries=retries))
+        session = _create_session_with_retries()
         logging.info(f"Processing {len(args.sitemaps)} sitemap(s)...")
         sitemap_urls = process_sitemaps(args.sitemaps, session)
         logging.info(f"Found {len(sitemap_urls)} URLs from sitemaps.")
@@ -102,6 +128,16 @@ def main() -> None:
             logging.info(f"Found {len(urls_from_file)} URLs from file: {args.file}")
             urls_to_archive.update(urls_from_file)
 
+    # --- Validate URLs ---
+    invalid_urls = {url for url in urls_to_archive if not _is_valid_url(url)}
+    if invalid_urls:
+        for url in invalid_urls:
+            logging.warning(
+                "Skipping invalid URL '%s': must have http:// or https:// scheme.",
+                url,
+            )
+        urls_to_archive -= invalid_urls
+
     urls_to_process: list[str] = list(urls_to_archive)
     if not urls_to_process:
         logging.warning("No unique URLs found to archive. Exiting.")
@@ -113,15 +149,7 @@ def main() -> None:
 
     # --- Run the archiving workflow ---
     logging.info("SPN2 credentials found. Using authenticated API workflow.")
-    client_session = requests.Session()
-    retries = Retry(
-        total=5,
-        backoff_factor=args.rate_limit_in_sec,
-        status_forcelist=[500, 502, 503, 504, 520],
-        allowed_methods=["HEAD", "GET", "POST", "PUT", "DELETE", "OPTIONS", "TRACE"],
-    )
-    client_session.mount("https://", HTTPAdapter(max_retries=retries))
-    client_session.mount("http://", HTTPAdapter(max_retries=retries))
+    client_session = _create_session_with_retries(backoff_factor=args.rate_limit_in_sec)
 
     client = SPN2Client(
         session=client_session, access_key=access_key, secret_key=secret_key
