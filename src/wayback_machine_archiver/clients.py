@@ -65,4 +65,5 @@ class SPN2Client:
         r = self.session.post(self.STATUS_URL, data=data)
         r.raise_for_status()
         result: list[dict[str, Any]] = r.json()
+        logging.debug("Status API response: %s", result)
         return result

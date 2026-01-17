@@ -184,7 +184,11 @@ def _poll_pending_jobs(
 
         for status_data in batch_statuses:
             job_id = status_data.get("job_id")
-            if not job_id or job_id not in pending_jobs:
+            if not job_id:
+                logging.debug("Status response missing job_id: %s", status_data)
+                continue
+            if job_id not in pending_jobs:
+                logging.debug("Received status for unknown job_id: %s", job_id)
                 continue
 
             # --- URL is now inside a dictionary ---
