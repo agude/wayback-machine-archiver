@@ -20,7 +20,7 @@ jobs:
     - name: Set up uv 💨
       uses: astral-sh/setup-uv@v6
       with:
-        uv-version: latest
+        version: latest
 
     - name: Install dependencies 🏗
       run: uv pip install --system -e ".[dev]" mypy types-requests
@@ -54,7 +54,7 @@ jobs:
     - name: Set up uv 💨
       uses: astral-sh/setup-uv@v6
       with:
-        uv-version: latest
+        version: latest
 
     - name: Install dependencies 🏗
       run: uv pip install --system -e ".[dev]"
