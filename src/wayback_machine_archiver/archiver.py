@@ -47,15 +47,8 @@ def _is_valid_url(url: str) -> bool:
         return False
 
 
-def main() -> None:
-    """Main entry point for the archiver script."""
-    parser = create_parser()
-    args = parser.parse_args()
-
-    logging.basicConfig(level=args.log_level, filename=args.log_file)
-    load_dotenv()
-
-    # --- Load and REQUIRE credentials ---
+def _load_credentials() -> tuple[str, str]:
+    """Load and validate API credentials from environment."""
     access_key = os.getenv("INTERNET_ARCHIVE_ACCESS_KEY")
     secret_key = os.getenv("INTERNET_ARCHIVE_SECRET_KEY")
 
@@ -68,18 +61,28 @@ def main() -> None:
         logging.error("INTERNET_ARCHIVE_ACCESS_KEY and INTERNET_ARCHIVE_SECRET_KEY")
         sys.exit(1)
 
-    # --- Enforce API rate-limiting minimums for authenticated users ---
-    MIN_WAIT_SEC = 5
-    if args.rate_limit_in_sec < MIN_WAIT_SEC:
-        logging.warning(
-            "Provided rate limit of %d seconds is below the API minimum of %d for authenticated users. Overriding to %d seconds.",
-            args.rate_limit_in_sec,
-            MIN_WAIT_SEC,
-            MIN_WAIT_SEC,
-        )
-        args.rate_limit_in_sec = MIN_WAIT_SEC
+    return access_key, secret_key
 
-    # --- Build API parameters dictionary from CLI args ---
+
+_MIN_RATE_LIMIT_SEC = 5
+
+
+def _enforce_rate_limit(rate_limit: int) -> int:
+    """Enforce minimum rate limit for authenticated API users."""
+    if rate_limit < _MIN_RATE_LIMIT_SEC:
+        logging.warning(
+            "Provided rate limit of %d seconds is below the API minimum of %d for "
+            "authenticated users. Overriding to %d seconds.",
+            rate_limit,
+            _MIN_RATE_LIMIT_SEC,
+            _MIN_RATE_LIMIT_SEC,
+        )
+        return _MIN_RATE_LIMIT_SEC
+    return rate_limit
+
+
+def _build_api_params(args) -> dict[str, str | int]:
+    """Build API parameters dictionary from CLI args."""
     api_params: dict[str, str | int] = {}
     if args.capture_all:
         api_params["capture_all"] = "1"
@@ -103,58 +106,83 @@ def main() -> None:
         api_params["capture_cookie"] = args.capture_cookie
     if args.use_user_agent:
         api_params["use_user_agent"] = args.use_user_agent
+    return api_params
 
-    if api_params:
-        logging.info(f"Using the following API parameters: {api_params}")
 
-    # --- Gather all URLs to archive ---
-    urls_to_archive: set[str] = set()
+def _gather_urls(args) -> set[str]:
+    """Collect URLs from all sources (CLI, sitemaps, file)."""
+    urls: set[str] = set()
     logging.info("Gathering URLs to archive...")
+
     if args.urls:
         logging.info(f"Found {len(args.urls)} URLs from command-line arguments.")
-        urls_to_archive.update(args.urls)
+        urls.update(args.urls)
+
     if args.sitemaps:
         session = _create_session_with_retries()
         logging.info(f"Processing {len(args.sitemaps)} sitemap(s)...")
         sitemap_urls = process_sitemaps(args.sitemaps, session)
         logging.info(f"Found {len(sitemap_urls)} URLs from sitemaps.")
-        urls_to_archive.update(sitemap_urls)
+        urls.update(sitemap_urls)
         if args.archive_sitemap:
             remote_sitemaps = {s for s in args.sitemaps if not s.startswith("file://")}
-            urls_to_archive.update(remote_sitemaps)
+            urls.update(remote_sitemaps)
+
     if args.file:
         with open(args.file) as f:
             urls_from_file = {line.strip() for line in f if line.strip()}
             logging.info(f"Found {len(urls_from_file)} URLs from file: {args.file}")
-            urls_to_archive.update(urls_from_file)
+            urls.update(urls_from_file)
 
-    # --- Validate URLs ---
-    invalid_urls = {url for url in urls_to_archive if not _is_valid_url(url)}
+    return urls
+
+
+def _filter_valid_urls(urls: set[str]) -> set[str]:
+    """Filter out invalid URLs and log warnings for them."""
+    invalid_urls = {url for url in urls if not _is_valid_url(url)}
     if invalid_urls:
         for url in invalid_urls:
             logging.warning(
                 "Skipping invalid URL '%s': must have http:// or https:// scheme.",
                 url,
             )
-        urls_to_archive -= invalid_urls
+    return urls - invalid_urls
+
+
+def main() -> None:
+    """Main entry point for the archiver script."""
+    parser = create_parser()
+    args = parser.parse_args()
+
+    logging.basicConfig(level=args.log_level, filename=args.log_file)
+    load_dotenv()
+
+    access_key, secret_key = _load_credentials()
+    rate_limit = _enforce_rate_limit(args.rate_limit_in_sec)
+    api_params = _build_api_params(args)
+
+    if api_params:
+        logging.info(f"Using the following API parameters: {api_params}")
+
+    urls_to_archive = _gather_urls(args)
+    urls_to_archive = _filter_valid_urls(urls_to_archive)
 
     urls_to_process: list[str] = list(urls_to_archive)
     if not urls_to_process:
         logging.warning("No unique URLs found to archive. Exiting.")
         return
+
     logging.info(f"Found a total of {len(urls_to_process)} unique URLs to archive.")
     if args.random_order:
         logging.info("Randomizing the order of URLs.")
         random.shuffle(urls_to_process)
 
-    # --- Run the archiving workflow ---
     logging.info("SPN2 credentials found. Using authenticated API workflow.")
-    client_session = _create_session_with_retries(backoff_factor=args.rate_limit_in_sec)
-
+    client_session = _create_session_with_retries(backoff_factor=rate_limit)
     client = SPN2Client(
         session=client_session, access_key=access_key, secret_key=secret_key
     )
-    run_archive_workflow(client, urls_to_process, args.rate_limit_in_sec, api_params)
+    run_archive_workflow(client, urls_to_process, rate_limit, api_params)
 
 
 if __name__ == "__main__":
