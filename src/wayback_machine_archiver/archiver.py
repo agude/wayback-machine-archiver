@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import logging
 import os
 import random
@@ -81,7 +82,7 @@ def _enforce_rate_limit(rate_limit: int) -> int:
     return rate_limit
 
 
-def _build_api_params(args) -> dict[str, str | int]:
+def _build_api_params(args: argparse.Namespace) -> dict[str, str | int]:
     """Build API parameters dictionary from CLI args."""
     api_params: dict[str, str | int] = {}
     if args.capture_all:
@@ -109,7 +110,7 @@ def _build_api_params(args) -> dict[str, str | int]:
     return api_params
 
 
-def _gather_urls(args) -> set[str]:
+def _gather_urls(args: argparse.Namespace) -> set[str]:
     """Collect URLs from all sources (CLI, sitemaps, file)."""
     urls: set[str] = set()
     logging.info("Gathering URLs to archive...")
