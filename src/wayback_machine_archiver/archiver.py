@@ -155,7 +155,12 @@ def main() -> None:
     parser = create_parser()
     args = parser.parse_args()
 
-    logging.basicConfig(level=args.log_level, filename=args.log_file)
+    logging.basicConfig(
+        level=args.log_level,
+        filename=args.log_file,
+        format="%(asctime)s %(levelname)s %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S%z",
+    )
     load_dotenv()
 
     access_key, secret_key = _load_credentials()

@@ -12,6 +12,8 @@ from wayback_machine_archiver.cli import create_parser
 # Test constants
 DUMMY_CREDENTIALS = "dummy_key"
 CREDENTIAL_ENV_VARS = ("INTERNET_ARCHIVE_ACCESS_KEY", "INTERNET_ARCHIVE_SECRET_KEY")
+EXPECTED_LOG_FORMAT = "%(asctime)s %(levelname)s %(message)s"
+EXPECTED_LOG_DATEFMT = "%Y-%m-%dT%H:%M:%S%z"
 
 
 @pytest.fixture
@@ -66,7 +68,12 @@ def test_log_level(
     """Verify that the --log argument is case-insensitive."""
     cli_args(["archiver", "http://test.com", "--log", input_level])
     main()
-    mock_basic_config.assert_called_once_with(level=expected_level, filename=None)
+    mock_basic_config.assert_called_once_with(
+        level=expected_level,
+        filename=None,
+        format=EXPECTED_LOG_FORMAT,
+        datefmt=EXPECTED_LOG_DATEFMT,
+    )
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
@@ -79,7 +86,12 @@ def test_log_to_file(
     log_file = "archive.log"
     cli_args(["archiver", "http://test.com", "--log-to-file", log_file])
     main()
-    mock_basic_config.assert_called_once_with(level=logging.WARNING, filename=log_file)
+    mock_basic_config.assert_called_once_with(
+        level=logging.WARNING,
+        filename=log_file,
+        format=EXPECTED_LOG_FORMAT,
+        datefmt=EXPECTED_LOG_DATEFMT,
+    )
 
 
 # --- Tests for rate limiting ---
