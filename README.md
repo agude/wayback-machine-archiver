@@ -7,10 +7,17 @@ written in Python to back up web pages using the [Internet Archive][ia].
 
 ## Installation
 
-The best way to install Archiver is with `pip`:
+Install Archiver with your preferred Python package manager:
 
 ```bash
 pip install wayback-machine-archiver
+```
+
+Or, if you use [uv](https://docs.astral.sh/uv/) or [pipx](https://pipx.pypa.io/):
+
+```bash
+uv tool install wayback-machine-archiver
+pipx install wayback-machine-archiver
 ```
 
 This will give you access to the script simply by calling:
