@@ -41,6 +41,7 @@ dev = [
     "pytest",
     "requests-mock",
     "bump-my-version",
+    "types-defusedxml",
 ]
 
 [tool.bumpversion]
