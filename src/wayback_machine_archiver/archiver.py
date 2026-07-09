@@ -184,7 +184,7 @@ def main() -> None:
         random.shuffle(urls_to_process)
 
     logging.info("SPN2 credentials found. Using authenticated API workflow.")
-    client_session = _create_session_with_retries(backoff_factor=rate_limit)
+    client_session = _create_session_with_retries()
     client = SPN2Client(
         session=client_session, access_key=access_key, secret_key=secret_key
     )
