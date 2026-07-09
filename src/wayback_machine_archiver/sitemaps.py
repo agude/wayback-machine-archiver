@@ -47,7 +47,7 @@ def sitemap_is_local(sitemap_url: str) -> bool:
 
 def _is_sitemap_index(root: Element, namespace: str) -> bool:
     """Check if the root element is a sitemapindex."""
-    tag = root.tag.removeprefix(namespace)
+    tag = root.tag[len(namespace):] if root.tag.startswith(namespace) else root.tag
     return tag == "sitemapindex"
 
 
