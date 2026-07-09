@@ -163,15 +163,9 @@ def _poll_pending_jobs(
     if not job_ids_to_check:
         return [], [], []
 
-    # Make a single batch request for all pending jobs.
-    # The API is expected to return a list of status objects.
     batch_statuses: list[dict[str, Any]] = client.check_status_batch(
         job_ids_to_check
     )
-
-    # It's possible the API returns a single object if only one job was queried.
-    if not isinstance(batch_statuses, list):
-        batch_statuses = [batch_statuses]
 
     for status_data in batch_statuses:
         job_id = status_data.get("job_id")

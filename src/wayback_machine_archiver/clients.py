@@ -8,6 +8,7 @@ import requests
 
 
 REQUEST_TIMEOUT = (10, 60)
+BATCH_STATUS_CHUNK_SIZE = 50
 
 
 class SPN2Client:
@@ -61,11 +62,18 @@ class SPN2Client:
         return job_id
 
     def check_status_batch(self, job_ids: list[str]) -> list[dict[str, Any]]:
-        """Checks the status of multiple capture jobs in a single request."""
-        logging.debug("Checking status for %d jobs in a batch.", len(job_ids))
-        data = {"job_ids": ",".join(job_ids)}
-        r = self.session.post(self.STATUS_URL, data=data, timeout=REQUEST_TIMEOUT)
-        r.raise_for_status()
-        result: list[dict[str, Any]] = r.json()
-        logging.debug("Status API response: %s", result)
-        return result
+        """Checks the status of multiple capture jobs, chunking large batches."""
+        logging.debug("Checking status for %d jobs.", len(job_ids))
+        all_results: list[dict[str, Any]] = []
+        for i in range(0, len(job_ids), BATCH_STATUS_CHUNK_SIZE):
+            chunk = job_ids[i : i + BATCH_STATUS_CHUNK_SIZE]
+            data = {"job_ids": ",".join(chunk)}
+            r = self.session.post(self.STATUS_URL, data=data, timeout=REQUEST_TIMEOUT)
+            r.raise_for_status()
+            result = r.json()
+            if isinstance(result, list):
+                all_results.extend(result)
+            else:
+                all_results.append(result)
+        logging.debug("Status API response: %s", all_results)
+        return all_results

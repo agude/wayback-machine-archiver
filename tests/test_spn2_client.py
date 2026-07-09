@@ -1,5 +1,5 @@
 import pytest
-from wayback_machine_archiver.clients import SPN2Client
+from wayback_machine_archiver.clients import BATCH_STATUS_CHUNK_SIZE, SPN2Client
 from requests.adapters import HTTPAdapter
 import requests
 import urllib.parse
@@ -54,3 +54,35 @@ def test_spn2_client_submit_capture(requests_mock, session, api_params):
         expected_payload.update(api_params)
     expected_body = urllib.parse.urlencode(expected_payload)
     assert request.text == expected_body
+
+
+def test_check_status_batch_chunks_large_requests(requests_mock, session):
+    """
+    Verify that check_status_batch splits job_ids into chunks of
+    BATCH_STATUS_CHUNK_SIZE and combines the results.
+    """
+    access_key = "test-access"
+    secret_key = "test-secret"
+
+    num_jobs = BATCH_STATUS_CHUNK_SIZE + 3
+    job_ids = [f"job-{i}" for i in range(num_jobs)]
+
+    chunk1_response = [
+        {"job_id": f"job-{i}", "status": "pending"}
+        for i in range(BATCH_STATUS_CHUNK_SIZE)
+    ]
+    chunk2_response = [
+        {"job_id": f"job-{i}", "status": "pending"}
+        for i in range(BATCH_STATUS_CHUNK_SIZE, num_jobs)
+    ]
+
+    requests_mock.post(
+        SPN2Client.STATUS_URL,
+        [{"json": chunk1_response}, {"json": chunk2_response}],
+    )
+
+    client = SPN2Client(session=session, access_key=access_key, secret_key=secret_key)
+    results = client.check_status_batch(job_ids)
+
+    assert len(results) == num_jobs
+    assert requests_mock.call_count == 2
