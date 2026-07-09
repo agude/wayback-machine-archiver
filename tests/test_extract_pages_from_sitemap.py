@@ -17,14 +17,14 @@ def test_ascii_sitemap():
         </urlset>
     """.encode("UTF-8")
 
-    URLS = set(
-        (
-            "https://alexgude.com/blog/double-checking-538/",
-            "https://alexgude.com/files/undergrad_thesis.pdf",
-        )
-    )
+    URLS = {
+        "https://alexgude.com/blog/double-checking-538/",
+        "https://alexgude.com/files/undergrad_thesis.pdf",
+    }
 
-    assert extract_urls_from_sitemap(SITEMAP) == URLS
+    page_urls, child_sitemaps = extract_urls_from_sitemap(SITEMAP)
+    assert page_urls == URLS
+    assert child_sitemaps == set()
 
 
 def test_unicode_sitemap():
@@ -55,11 +55,31 @@ def test_unicode_sitemap():
         </urlset>
     """.encode("UTF-8")
 
-    URLS = set(
-        (
-            "https://www.radiokeysmusic.com/home",
-            "https://www.radiokeysmusic.com/about",
-        )
-    )
+    URLS = {
+        "https://www.radiokeysmusic.com/home",
+        "https://www.radiokeysmusic.com/about",
+    }
 
-    assert extract_urls_from_sitemap(SITEMAP) == URLS
+    page_urls, child_sitemaps = extract_urls_from_sitemap(SITEMAP)
+    assert page_urls == URLS
+    assert child_sitemaps == set()
+
+
+def test_sitemap_index():
+    SITEMAP_INDEX = """<?xml version="1.0" encoding="UTF-8"?>
+        <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+        <sitemap>
+        <loc>https://example.com/sitemap1.xml</loc>
+        </sitemap>
+        <sitemap>
+        <loc>https://example.com/sitemap2.xml</loc>
+        </sitemap>
+        </sitemapindex>
+    """.encode("UTF-8")
+
+    page_urls, child_sitemaps = extract_urls_from_sitemap(SITEMAP_INDEX)
+    assert page_urls == set()
+    assert child_sitemaps == {
+        "https://example.com/sitemap1.xml",
+        "https://example.com/sitemap2.xml",
+    }

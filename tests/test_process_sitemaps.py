@@ -103,3 +103,53 @@ def test_process_sitemaps_empty_list(session):
     result = process_sitemaps([], session)
 
     assert result == set()
+
+
+def test_process_sitemaps_recurses_into_sitemap_index(requests_mock, session):
+    """Verify that a sitemap index is recursed to fetch child sitemaps."""
+    index_url = "https://example.com/sitemap_index.xml"
+    child_url = "https://example.com/sitemap1.xml"
+
+    index_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+    <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+        <sitemap><loc>{child_url}</loc></sitemap>
+    </sitemapindex>
+    """
+    child_xml = """<?xml version="1.0" encoding="UTF-8"?>
+    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+        <url><loc>https://example.com/deep-page</loc></url>
+    </urlset>
+    """
+
+    requests_mock.get(index_url, content=index_xml.encode("UTF-8"))
+    requests_mock.get(child_url, content=child_xml.encode("UTF-8"))
+
+    result = process_sitemaps([index_url], session)
+
+    assert result == {"https://example.com/deep-page"}
+    assert requests_mock.call_count == 2
+
+
+def test_process_sitemaps_respects_depth_limit(requests_mock, session, caplog):
+    """Verify that sitemap index recursion stops at the depth limit."""
+    from wayback_machine_archiver.sitemaps import MAX_SITEMAP_INDEX_DEPTH
+
+    urls = [
+        f"https://example.com/sitemap_level{i}.xml"
+        for i in range(MAX_SITEMAP_INDEX_DEPTH + 2)
+    ]
+
+    for i in range(MAX_SITEMAP_INDEX_DEPTH + 1):
+        child = urls[i + 1]
+        xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+        <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+            <sitemap><loc>{child}</loc></sitemap>
+        </sitemapindex>
+        """
+        requests_mock.get(urls[i], content=xml.encode("UTF-8"))
+
+    with caplog.at_level(logging.WARNING):
+        result = process_sitemaps([urls[0]], session)
+
+    assert result == set()
+    assert "depth limit" in caplog.text
