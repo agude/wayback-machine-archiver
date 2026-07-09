@@ -82,6 +82,7 @@ INITIAL_POLLING_WAIT = 5
 MAX_POLLING_WAIT = 60
 POLLING_BACKOFF_FACTOR = 1.5
 MAX_CONSECUTIVE_POLL_FAILURES = 5
+MAX_PENDING_JOBS = 10
 
 
 class PendingJob(TypedDict):
@@ -281,7 +282,7 @@ def run_archive_workflow(
     )
 
     while urls_to_process or pending_jobs:
-        if urls_to_process:
+        if urls_to_process and len(pending_jobs) < MAX_PENDING_JOBS:
             status = _submit_next_url(
                 urls_to_process,
                 client,

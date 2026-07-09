@@ -11,6 +11,7 @@ from wayback_machine_archiver.workflow import (
     _poll_pending_jobs,
     run_archive_workflow,
     MAX_CONSECUTIVE_POLL_FAILURES,
+    MAX_PENDING_JOBS,
     PERMANENT_ERROR_MESSAGES,
     TRANSIENT_ERROR_MESSAGES,
 )
@@ -671,3 +672,41 @@ def test_workflow_fails_all_after_max_consecutive_poll_failures(
         run_archive_workflow(mock_client, ["http://a.com"], 0, {})
 
     assert f"Polling failed {MAX_CONSECUTIVE_POLL_FAILURES} consecutive times" in caplog.text
+
+
+# --- Tests for concurrency cap ---
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+@mock.patch("wayback_machine_archiver.workflow._poll_pending_jobs")
+@mock.patch("wayback_machine_archiver.workflow._submit_next_url")
+def test_workflow_caps_in_flight_jobs(mock_submit, mock_poll, mock_sleep):
+    """
+    Verify that the workflow stops submitting new URLs when the number
+    of pending jobs reaches MAX_PENDING_JOBS.
+    """
+    mock_client = mock.Mock()
+    num_urls = MAX_PENDING_JOBS + 5
+    urls = [f"http://example.com/{i}" for i in range(num_urls)]
+
+    max_concurrent_seen = 0
+
+    def submit_side_effect(urls_proc, client_arg, pending_jobs_dict, *args, **kwargs):
+        url = urls_proc.pop(0)
+        pending_jobs_dict[f"job-{url}"] = {"url": url, "submitted_at": time.time()}
+        return None
+
+    mock_submit.side_effect = submit_side_effect
+
+    def poll_side_effect(client_arg, pending_jobs_dict, *args, **kwargs):
+        nonlocal max_concurrent_seen
+        max_concurrent_seen = max(max_concurrent_seen, len(pending_jobs_dict))
+        first_key = next(iter(pending_jobs_dict))
+        url = pending_jobs_dict.pop(first_key)["url"]
+        return [url], [], []
+
+    mock_poll.side_effect = poll_side_effect
+
+    run_archive_workflow(mock_client, list(urls), 0, {})
+
+    assert max_concurrent_seen <= MAX_PENDING_JOBS
