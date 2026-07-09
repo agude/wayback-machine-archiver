@@ -29,7 +29,7 @@ def _create_session_with_retries(
     retries = Retry(
         total=total_retries,
         backoff_factor=backoff_factor,
-        status_forcelist=[500, 502, 503, 504, 520],
+        status_forcelist=[429, 500, 502, 503, 504, 520],
         allowed_methods=["HEAD", "GET", "POST", "PUT", "DELETE", "OPTIONS", "TRACE"],
     )
     # Mount to both protocols to ensure retry logic applies regardless of target scheme
