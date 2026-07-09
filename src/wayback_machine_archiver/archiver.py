@@ -65,7 +65,7 @@ def _load_credentials() -> tuple[str, str]:
     return access_key, secret_key
 
 
-_MIN_RATE_LIMIT_SEC = 5
+_MIN_RATE_LIMIT_SEC = 9
 
 
 def _enforce_rate_limit(rate_limit: int) -> int:

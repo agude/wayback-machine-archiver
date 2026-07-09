@@ -99,7 +99,7 @@ def test_log_to_file(
 
 @pytest.mark.parametrize(
     "user_input, expected_wait",
-    [(2, 5), (10, 10)],
+    [(2, 9), (10, 10)],
 )
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
 @mock.patch("wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0))
