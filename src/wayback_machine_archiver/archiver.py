@@ -188,7 +188,12 @@ def main() -> None:
     client = SPN2Client(
         session=client_session, access_key=access_key, secret_key=secret_key
     )
-    run_archive_workflow(client, urls_to_process, rate_limit, api_params)
+    _success_count, failure_count = run_archive_workflow(
+        client, urls_to_process, rate_limit, api_params
+    )
+
+    if failure_count > 0:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

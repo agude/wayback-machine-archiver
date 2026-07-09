@@ -41,7 +41,7 @@ def mock_credentials(monkeypatch):
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow")
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0))
 @mock.patch("wayback_machine_archiver.archiver.random.shuffle")
 def test_random_order_flag_shuffles_urls(
     mock_shuffle, mock_workflow, mock_sitemaps, cli_args, mock_credentials
@@ -57,7 +57,7 @@ def test_random_order_flag_shuffles_urls(
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow")
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0))
 @mock.patch("wayback_machine_archiver.archiver.random.shuffle")
 def test_default_order_does_not_shuffle(
     mock_shuffle, mock_workflow, mock_sitemaps, cli_args, mock_credentials
@@ -73,7 +73,7 @@ def test_default_order_does_not_shuffle(
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow")
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0))
 def test_main_builds_and_passes_api_params(
     mock_workflow, mock_sitemaps, cli_args, mock_credentials
 ):
@@ -206,7 +206,7 @@ def test_main_end_to_end_with_mocked_timing(
     "wayback_machine_archiver.archiver.process_sitemaps",
     return_value={EXTRACTED_PAGE_URL},
 )
-@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow")
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0))
 def test_archive_sitemap_also_behavior(
     mock_workflow,
     mock_process_sitemaps,

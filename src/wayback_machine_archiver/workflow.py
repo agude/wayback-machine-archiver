@@ -259,7 +259,7 @@ def run_archive_workflow(
     urls_to_process: list[str],
     rate_limit_in_sec: float,
     api_params: dict[str, str | int],
-) -> None:
+) -> tuple[int, int]:
     """Manages the main loop for submitting and polling URLs."""
     pending_jobs: dict[str, PendingJob] = {}
     submission_attempts: dict[str, int] = {}
@@ -350,3 +350,5 @@ def run_archive_workflow(
     logging.info(f"Successful captures: {success_count}")
     logging.info(f"Failed captures: {failure_count}")
     logging.info("--------------------------------------------------")
+
+    return success_count, failure_count
