@@ -132,6 +132,7 @@ def _submit_next_url(
             "Submission for %s was accepted but no job_id was returned. This can happen under high load or due to rate limits. Re-queuing for another attempt.",
             url,
         )
+        submission_attempts[url] = attempt_num - 1
         urls_to_process.append(url)
         return None
 
@@ -314,6 +315,12 @@ def run_archive_workflow(
                     )
                     failure_count += len(pending_jobs)
                     pending_jobs.clear()
+                else:
+                    time.sleep(polling_wait_time)
+                    polling_wait_time = min(
+                        int(polling_wait_time * POLLING_BACKOFF_FACTOR),
+                        MAX_POLLING_WAIT,
+                    )
                 continue
 
             consecutive_poll_failures = 0

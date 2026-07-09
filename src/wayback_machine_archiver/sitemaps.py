@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import deque
 from xml.etree.ElementTree import Element, ParseError
 
 import defusedxml.ElementTree as ET
 
 import requests
 
-from .clients import REQUEST_TIMEOUT
+from . import REQUEST_TIMEOUT
 
 LOCAL_PREFIX = "file://"
 MAX_SITEMAP_INDEX_DEPTH = 5
@@ -86,10 +87,10 @@ def process_sitemaps(
     Recurses into sitemap index files up to MAX_SITEMAP_INDEX_DEPTH levels.
     """
     all_urls: set[str] = set()
-    queue: list[tuple[str, int]] = [(url, 0) for url in sitemap_urls]
+    queue: deque[tuple[str, int]] = deque((url, 0) for url in sitemap_urls)
 
     while queue:
-        sitemap_url, depth = queue.pop(0)
+        sitemap_url, depth = queue.popleft()
         try:
             sitemap_xml = _fetch_sitemap_bytes(sitemap_url, session)
             page_urls, child_sitemaps = extract_urls_from_sitemap(sitemap_xml)

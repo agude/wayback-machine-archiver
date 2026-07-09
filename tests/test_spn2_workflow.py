@@ -89,10 +89,11 @@ def test_submit_next_url_failure_requeues_and_tracks_attempt():
     )
 
 
-def test_submit_next_url_no_job_id_requeues():
+def test_submit_next_url_no_job_id_requeues_without_penalty():
     """
     Verify that when submit_capture returns None (no job_id), the URL
-    is re-queued without counting against submission attempts.
+    is re-queued without counting against submission attempts. A missing
+    job_id signals server-side load, not a problem with the URL.
     """
     mock_client = mock.Mock()
     mock_client.submit_capture.return_value = None
@@ -112,7 +113,7 @@ def test_submit_next_url_no_job_id_requeues():
 
     assert not pending_jobs
     assert urls_to_process == ["http://example.com"]
-    assert submission_attempts == {"http://example.com": 1}
+    assert submission_attempts.get("http://example.com", 0) == 0
 
 
 def test_submit_next_url_gives_up_after_max_retries():

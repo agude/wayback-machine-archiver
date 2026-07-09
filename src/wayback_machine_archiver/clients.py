@@ -7,7 +7,8 @@ from typing import Any
 import requests
 
 
-REQUEST_TIMEOUT = (10, 60)
+from . import REQUEST_TIMEOUT
+
 BATCH_STATUS_CHUNK_SIZE = 50
 
 
