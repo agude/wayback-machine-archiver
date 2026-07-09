@@ -116,36 +116,26 @@ def _submit_next_url(
         job_id = client.submit_capture(
             url, rate_limit_wait=rate_limit_in_sec, api_params=api_params
         )
-
-        if not job_id:
-            # The API accepted the request but didn't provide a job_id.
-            # This is treated as a transient error to trigger a retry.
-            raise ValueError(
-                "API did not return a job_id, likely due to rate limiting."
-            )
-
-        # --- Store a dictionary with URL and timestamp ---
-        pending_jobs[job_id] = {"url": url, "submitted_at": time.time()}
-        if url in submission_attempts:
-            del submission_attempts[url]
-
-    except ValueError:
-        # This block specifically catches the "no job_id" case.
-        logging.warning(
-            "Submission for %s was accepted but no job_id was returned. This can happen under high load or due to rate limits. Re-queuing for another attempt.",
-            url,
-        )
-        urls_to_process.append(url)
-
-    except (requests.exceptions.RequestException, ValueError) as e:
-        # RequestException: network errors (ConnectionError, Timeout, HTTPError, etc.)
-        # ValueError: malformed API response (e.g., HTML error page instead of JSON)
+    except requests.exceptions.RequestException as e:
         logging.warning(
             "Failed to submit URL %s due to a connection or API error: %s. Re-queuing for another attempt.",
             url,
             e,
         )
         urls_to_process.append(url)
+        return None
+
+    if not job_id:
+        logging.warning(
+            "Submission for %s was accepted but no job_id was returned. This can happen under high load or due to rate limits. Re-queuing for another attempt.",
+            url,
+        )
+        urls_to_process.append(url)
+        return None
+
+    pending_jobs[job_id] = {"url": url, "submitted_at": time.time()}
+    if url in submission_attempts:
+        del submission_attempts[url]
 
     return None
 

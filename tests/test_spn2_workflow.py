@@ -87,6 +87,32 @@ def test_submit_next_url_failure_requeues_and_tracks_attempt():
     )
 
 
+def test_submit_next_url_no_job_id_requeues():
+    """
+    Verify that when submit_capture returns None (no job_id), the URL
+    is re-queued without counting against submission attempts.
+    """
+    mock_client = mock.Mock()
+    mock_client.submit_capture.return_value = None
+
+    urls_to_process = ["http://example.com"]
+    pending_jobs = {}
+    submission_attempts = {}
+
+    _submit_next_url(
+        urls_to_process,
+        mock_client,
+        pending_jobs,
+        5,
+        submission_attempts,
+        api_params={},
+    )
+
+    assert not pending_jobs
+    assert urls_to_process == ["http://example.com"]
+    assert submission_attempts == {"http://example.com": 1}
+
+
 def test_submit_next_url_gives_up_after_max_retries():
     """
     Verify that if a URL has reached its max retry count, it is not
