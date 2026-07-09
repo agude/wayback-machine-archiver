@@ -39,7 +39,7 @@ def load_local_sitemap(sitemap_filepath: str) -> bytes:
 
 def sitemap_is_local(sitemap_url: str) -> bool:
     """Check if a sitemap URI is local."""
-    return sitemap_url.startswith(LOCAL_PREFIX) or sitemap_url.startswith("/")
+    return sitemap_url.startswith(LOCAL_PREFIX)
 
 
 def extract_urls_from_sitemap(sitemap_bytes: bytes) -> set[str]:
