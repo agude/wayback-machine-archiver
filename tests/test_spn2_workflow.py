@@ -10,6 +10,7 @@ from wayback_machine_archiver.workflow import (
     _submit_next_url,
     _poll_pending_jobs,
     run_archive_workflow,
+    MAX_CONSECUTIVE_POLL_FAILURES,
     PERMANENT_ERROR_MESSAGES,
     TRANSIENT_ERROR_MESSAGES,
 )
@@ -571,3 +572,102 @@ def test_poll_handles_all_unknown_job_ids(mock_sleep, caplog):
     # Verify no ERROR was logged for the unknown job_ids
     error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
     assert len(error_records) == 0
+
+
+# --- Tests for poll failure resilience ---
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_poll_exception_propagates_to_caller(mock_sleep):
+    """
+    Verify that _poll_pending_jobs lets RequestException propagate
+    instead of catching it and clearing all jobs.
+    """
+    mock_client = mock.Mock()
+    mock_client.check_status_batch.side_effect = requests.exceptions.ConnectionError(
+        "network down"
+    )
+
+    now = time.time()
+    pending_jobs = {
+        "job-1": {"url": "http://a.com", "submitted_at": now},
+        "job-2": {"url": "http://b.com", "submitted_at": now},
+    }
+
+    with pytest.raises(requests.exceptions.ConnectionError):
+        _poll_pending_jobs(
+            mock_client,
+            pending_jobs,
+            transient_error_retries={},
+            max_transient_retries=3,
+            job_timeout_sec=7200,
+        )
+
+    assert len(pending_jobs) == 2, "Pending jobs must survive a poll failure"
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+@mock.patch("wayback_machine_archiver.workflow._poll_pending_jobs")
+@mock.patch("wayback_machine_archiver.workflow._submit_next_url")
+def test_workflow_survives_transient_poll_failures(
+    mock_submit, mock_poll, mock_sleep, caplog
+):
+    """
+    Verify that a single poll failure does not fail all pending jobs,
+    and that recovery on the next poll resets the failure counter.
+    """
+    mock_client = mock.Mock()
+
+    def submit_side_effect(urls_proc, client_arg, pending_jobs_dict, *args, **kwargs):
+        url = urls_proc.pop(0)
+        pending_jobs_dict[f"job-{url}"] = {"url": url, "submitted_at": time.time()}
+        return None
+
+    mock_submit.side_effect = submit_side_effect
+
+    call_count = 0
+
+    def poll_side_effect(client_arg, pending_jobs_dict, *args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise requests.exceptions.ConnectionError("blip")
+        successful_urls = [job["url"] for job in pending_jobs_dict.values()]
+        pending_jobs_dict.clear()
+        return successful_urls, [], []
+
+    mock_poll.side_effect = poll_side_effect
+
+    with caplog.at_level(logging.WARNING):
+        run_archive_workflow(mock_client, ["http://a.com"], 0, {})
+
+    assert "Poll request failed (1/" in caplog.text
+    error_records = [r for r in caplog.records if "Marking all" in r.message]
+    assert not error_records, "Should not have failed all jobs after one poll error"
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+@mock.patch("wayback_machine_archiver.workflow._poll_pending_jobs")
+@mock.patch("wayback_machine_archiver.workflow._submit_next_url")
+def test_workflow_fails_all_after_max_consecutive_poll_failures(
+    mock_submit, mock_poll, mock_sleep, caplog
+):
+    """
+    Verify that after MAX_CONSECUTIVE_POLL_FAILURES consecutive poll
+    failures, all pending jobs are marked as failed.
+    """
+    mock_client = mock.Mock()
+
+    def submit_side_effect(urls_proc, client_arg, pending_jobs_dict, *args, **kwargs):
+        url = urls_proc.pop(0)
+        pending_jobs_dict[f"job-{url}"] = {"url": url, "submitted_at": time.time()}
+        return None
+
+    mock_submit.side_effect = submit_side_effect
+
+    mock_poll.side_effect = requests.exceptions.ConnectionError("persistent failure")
+
+    with caplog.at_level(logging.ERROR):
+        run_archive_workflow(mock_client, ["http://a.com"], 0, {})
+
+    assert f"Polling failed {MAX_CONSECUTIVE_POLL_FAILURES} consecutive times" in caplog.text

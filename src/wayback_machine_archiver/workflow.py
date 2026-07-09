@@ -81,6 +81,7 @@ JOB_TIMEOUT_SEC = 7200  # 2 hours
 INITIAL_POLLING_WAIT = 5
 MAX_POLLING_WAIT = 60
 POLLING_BACKOFF_FACTOR = 1.5
+MAX_CONSECUTIVE_POLL_FAILURES = 5
 
 
 class PendingJob(TypedDict):
@@ -161,112 +162,95 @@ def _poll_pending_jobs(
     if not job_ids_to_check:
         return [], [], []
 
-    try:
-        # Make a single batch request for all pending jobs.
-        # The API is expected to return a list of status objects.
-        batch_statuses: list[dict[str, Any]] = client.check_status_batch(
-            job_ids_to_check
-        )
+    # Make a single batch request for all pending jobs.
+    # The API is expected to return a list of status objects.
+    batch_statuses: list[dict[str, Any]] = client.check_status_batch(
+        job_ids_to_check
+    )
 
-        # It's possible the API returns a single object if only one job was queried.
-        if not isinstance(batch_statuses, list):
-            batch_statuses = [batch_statuses]
+    # It's possible the API returns a single object if only one job was queried.
+    if not isinstance(batch_statuses, list):
+        batch_statuses = [batch_statuses]
 
-        for status_data in batch_statuses:
-            job_id = status_data.get("job_id")
-            if not job_id:
-                logging.debug("Status response missing job_id: %s", status_data)
-                continue
-            if job_id not in pending_jobs:
-                logging.debug("Received status for unknown job_id: %s", job_id)
-                continue
+    for status_data in batch_statuses:
+        job_id = status_data.get("job_id")
+        if not job_id:
+            logging.debug("Status response missing job_id: %s", status_data)
+            continue
+        if job_id not in pending_jobs:
+            logging.debug("Received status for unknown job_id: %s", job_id)
+            continue
 
-            # --- URL is now inside a dictionary ---
-            original_url = pending_jobs[job_id]["url"]
-            status = status_data.get("status")
+        original_url = pending_jobs[job_id]["url"]
+        status = status_data.get("status")
 
-            if status == "success":
-                timestamp = status_data.get("timestamp")
-                archive_url = f"https://web.archive.org/web/{timestamp}/{original_url}"
-                logging.info("Success for job %s: %s", job_id, archive_url)
-                del pending_jobs[job_id]
-                successful_urls.append(original_url)
-            elif status == "error":
-                status_ext: str = status_data.get("status_ext", "error:unknown")
-                api_message = status_data.get("message", "Unknown error")
+        if status == "success":
+            timestamp = status_data.get("timestamp")
+            archive_url = f"https://web.archive.org/web/{timestamp}/{original_url}"
+            logging.info("Success for job %s: %s", job_id, archive_url)
+            del pending_jobs[job_id]
+            successful_urls.append(original_url)
+        elif status == "error":
+            status_ext: str = status_data.get("status_ext", "error:unknown")
+            api_message = status_data.get("message", "Unknown error")
 
-                # The API can return a generic error code for what is actually a transient
-                # server-side processing error. We check the message for this specific case.
-                if "RecursionError" in api_message:
-                    status_ext = "error:recursion-error"
+            if "RecursionError" in api_message:
+                status_ext = "error:recursion-error"
 
-                if status_ext in REQUEUE_ERRORS:
-                    # --- Check if this URL has exceeded its transient retry limit ---
-                    retry_count = transient_error_retries.get(original_url, 0) + 1
-                    transient_error_retries[original_url] = retry_count
+            if status_ext in REQUEUE_ERRORS:
+                retry_count = transient_error_retries.get(original_url, 0) + 1
+                transient_error_retries[original_url] = retry_count
 
-                    if retry_count > max_transient_retries:
-                        logging.error(
-                            "URL %s failed with a transient error %d times. Marking as a permanent failure. (API code: %s)",
-                            original_url,
-                            max_transient_retries,
-                            status_ext,
-                        )
-                        del pending_jobs[job_id]
-                        failed_urls.append(original_url)
-                    else:
-                        # --- This is the original re-queue logic ---
-                        helpful_message = TRANSIENT_ERROR_MESSAGES.get(
-                            status_ext, "A transient error occurred."
-                        )
-                        logging.warning(
-                            "Transient error for %s: %s Re-queuing for another attempt (%d/%d). (API code: %s)",
-                            original_url,
-                            helpful_message,
-                            retry_count,
-                            max_transient_retries,
-                            status_ext,
-                        )
-                        del pending_jobs[job_id]
-                        requeued_urls.append(original_url)
-                else:
-                    # Look up the helpful message, with a fallback for unknown permanent errors.
-                    helpful_message = PERMANENT_ERROR_MESSAGES.get(
-                        status_ext, "An unrecoverable error occurred."
-                    )
+                if retry_count > max_transient_retries:
                     logging.error(
-                        "Permanent error for %s: %s (API message: %s)",
+                        "URL %s failed with a transient error %d times. Marking as a permanent failure. (API code: %s)",
+                        original_url,
+                        max_transient_retries,
+                        status_ext,
+                    )
+                    del pending_jobs[job_id]
+                    failed_urls.append(original_url)
+                else:
+                    helpful_message = TRANSIENT_ERROR_MESSAGES.get(
+                        status_ext, "A transient error occurred."
+                    )
+                    logging.warning(
+                        "Transient error for %s: %s Re-queuing for another attempt (%d/%d). (API code: %s)",
                         original_url,
                         helpful_message,
-                        api_message,
+                        retry_count,
+                        max_transient_retries,
+                        status_ext,
                     )
                     del pending_jobs[job_id]
-                    failed_urls.append(original_url)
+                    requeued_urls.append(original_url)
             else:
-                # --- Check for job timeout if status is pending ---
-                submitted_at = pending_jobs[job_id]["submitted_at"]
-                job_age = time.time() - submitted_at
-                if job_age > job_timeout_sec:
-                    logging.error(
-                        "Job for %s timed out after being pending for over %d seconds. Marking as failed.",
-                        original_url,
-                        job_timeout_sec,
-                    )
-                    del pending_jobs[job_id]
-                    failed_urls.append(original_url)
-                else:
-                    logging.debug(
-                        "Job %s (%s) is still pending...", job_id, original_url
-                    )
-
-    except Exception as e:
-        logging.error(
-            "An exception occurred during batch polling: %s. Clearing all pending jobs for this cycle to prevent loops.",
-            e,
-        )
-        # --- Must extract URLs from the dictionary values ---
-        failed_urls.extend([job["url"] for job in pending_jobs.values()])
-        pending_jobs.clear()
+                helpful_message = PERMANENT_ERROR_MESSAGES.get(
+                    status_ext, "An unrecoverable error occurred."
+                )
+                logging.error(
+                    "Permanent error for %s: %s (API message: %s)",
+                    original_url,
+                    helpful_message,
+                    api_message,
+                )
+                del pending_jobs[job_id]
+                failed_urls.append(original_url)
+        else:
+            submitted_at = pending_jobs[job_id]["submitted_at"]
+            job_age = time.time() - submitted_at
+            if job_age > job_timeout_sec:
+                logging.error(
+                    "Job for %s timed out after being pending for over %d seconds. Marking as failed.",
+                    original_url,
+                    job_timeout_sec,
+                )
+                del pending_jobs[job_id]
+                failed_urls.append(original_url)
+            else:
+                logging.debug(
+                    "Job %s (%s) is still pending...", job_id, original_url
+                )
 
     # A short sleep after each batch poll to be nice to the API.
     time.sleep(poll_interval_sec)
@@ -284,6 +268,7 @@ def run_archive_workflow(
     pending_jobs: dict[str, PendingJob] = {}
     submission_attempts: dict[str, int] = {}
     transient_error_retries: dict[str, int] = {}
+    consecutive_poll_failures = 0
 
     total_urls = len(urls_to_process)
     success_count = 0
@@ -307,18 +292,36 @@ def run_archive_workflow(
             )
             if status == "failed":
                 failure_count += 1
-            # Reset polling wait time after a new submission
             polling_wait_time = INITIAL_POLLING_WAIT
 
         if pending_jobs:
-            # --- Pass job timeout to the polling function ---
-            successful, failed, requeued = _poll_pending_jobs(
-                client,
-                pending_jobs,
-                transient_error_retries,
-                MAX_TRANSIENT_RETRIES,
-                JOB_TIMEOUT_SEC,
-            )
+            try:
+                successful, failed, requeued = _poll_pending_jobs(
+                    client,
+                    pending_jobs,
+                    transient_error_retries,
+                    MAX_TRANSIENT_RETRIES,
+                    JOB_TIMEOUT_SEC,
+                )
+            except (requests.RequestException, ValueError) as e:
+                consecutive_poll_failures += 1
+                logging.warning(
+                    "Poll request failed (%d/%d consecutive failures): %s",
+                    consecutive_poll_failures,
+                    MAX_CONSECUTIVE_POLL_FAILURES,
+                    e,
+                )
+                if consecutive_poll_failures >= MAX_CONSECUTIVE_POLL_FAILURES:
+                    logging.error(
+                        "Polling failed %d consecutive times. Marking all %d pending jobs as failed.",
+                        MAX_CONSECUTIVE_POLL_FAILURES,
+                        len(pending_jobs),
+                    )
+                    failure_count += len(pending_jobs)
+                    pending_jobs.clear()
+                continue
+
+            consecutive_poll_failures = 0
             success_count += len(successful)
             failure_count += len(failed)
             if requeued:
