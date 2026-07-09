@@ -23,7 +23,6 @@ class SPN2Client:
         secret_key: str,
     ) -> None:
         self.session = session
-        self.is_authenticated = True  # Always true now
 
         self.session.headers.update({"Accept": "application/json"})
         auth_header = f"LOW {access_key}:{secret_key}"
