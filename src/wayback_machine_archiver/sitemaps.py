@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import logging
 import re
-import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element, ParseError
+
+import defusedxml.ElementTree as ET
 
 import requests
 
