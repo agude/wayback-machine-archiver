@@ -7,6 +7,8 @@ from xml.etree.ElementTree import Element, ParseError
 
 import requests
 
+from .clients import REQUEST_TIMEOUT
+
 LOCAL_PREFIX = "file://"
 
 __all__ = ["LOCAL_PREFIX", "process_sitemaps"]
@@ -21,7 +23,7 @@ def get_namespace(element: Element) -> str:
 def download_remote_sitemap(sitemap_url: str, session: requests.Session) -> bytes:
     """Download a remote sitemap file."""
     logging.debug("Downloading: %s", sitemap_url)
-    r = session.get(sitemap_url)
+    r = session.get(sitemap_url, timeout=REQUEST_TIMEOUT)
     r.raise_for_status()
     return r.content
 

@@ -7,6 +7,9 @@ from typing import Any
 import requests
 
 
+REQUEST_TIMEOUT = (10, 60)
+
+
 class SPN2Client:
     """
     Handles archiving using the authenticated SPN2 API.
@@ -43,7 +46,7 @@ class SPN2Client:
         if api_params:
             data.update(api_params)
 
-        r = self.session.post(self.SAVE_URL, data=data)
+        r = self.session.post(self.SAVE_URL, data=data, timeout=REQUEST_TIMEOUT)
         r.raise_for_status()
         response_json = r.json()
         job_id: str | None = response_json.get("job_id")
@@ -61,7 +64,7 @@ class SPN2Client:
         """Checks the status of multiple capture jobs in a single request."""
         logging.debug("Checking status for %d jobs in a batch.", len(job_ids))
         data = {"job_ids": ",".join(job_ids)}
-        r = self.session.post(self.STATUS_URL, data=data)
+        r = self.session.post(self.STATUS_URL, data=data, timeout=REQUEST_TIMEOUT)
         r.raise_for_status()
         result: list[dict[str, Any]] = r.json()
         logging.debug("Status API response: %s", result)
