@@ -17,7 +17,7 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: System Administrators",
-"Natural Language :: English",
+    "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3.10",
@@ -47,6 +47,7 @@ dev = [
     "requests-mock",
     "bump-my-version",
     "types-defusedxml",
+    "ruff",
 ]
 
 [tool.bumpversion]
@@ -64,3 +65,10 @@ replace = 'version = "{new_version}"'
 filename = "src/wayback_machine_archiver/__init__.py"
 search = '__version__ = "{current_version}"'
 replace = '__version__ = "{new_version}"'
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "G"]
+ignore = ["E501"]

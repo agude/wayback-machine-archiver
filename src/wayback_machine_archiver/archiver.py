@@ -116,14 +116,14 @@ def _gather_urls(args: argparse.Namespace) -> set[str]:
     logging.info("Gathering URLs to archive...")
 
     if args.urls:
-        logging.info(f"Found {len(args.urls)} URLs from command-line arguments.")
+        logging.info("Found %d URLs from command-line arguments.", len(args.urls))
         urls.update(args.urls)
 
     if args.sitemaps:
         session = _create_session_with_retries()
-        logging.info(f"Processing {len(args.sitemaps)} sitemap(s)...")
+        logging.info("Processing %d sitemap(s)...", len(args.sitemaps))
         sitemap_urls = process_sitemaps(args.sitemaps, session)
-        logging.info(f"Found {len(sitemap_urls)} URLs from sitemaps.")
+        logging.info("Found %d URLs from sitemaps.", len(sitemap_urls))
         urls.update(sitemap_urls)
         if args.archive_sitemap:
             remote_sitemaps = {s for s in args.sitemaps if not s.startswith("file://")}
@@ -132,7 +132,7 @@ def _gather_urls(args: argparse.Namespace) -> set[str]:
     if args.file:
         with open(args.file) as f:
             urls_from_file = {line.strip() for line in f if line.strip()}
-            logging.info(f"Found {len(urls_from_file)} URLs from file: {args.file}")
+            logging.info("Found %d URLs from file: %s", len(urls_from_file), args.file)
             urls.update(urls_from_file)
 
     return urls
@@ -168,7 +168,7 @@ def main() -> None:
     api_params = _build_api_params(args)
 
     if api_params:
-        logging.info(f"Using the following API parameters: {api_params}")
+        logging.info("Using the following API parameters: %s", api_params)
 
     urls_to_archive = _gather_urls(args)
     urls_to_archive = _filter_valid_urls(urls_to_archive)
@@ -178,7 +178,7 @@ def main() -> None:
         logging.warning("No unique URLs found to archive. Exiting.")
         return
 
-    logging.info(f"Found a total of {len(urls_to_process)} unique URLs to archive.")
+    logging.info("Found a total of %d unique URLs to archive.", len(urls_to_process))
     if args.random_order:
         logging.info("Randomizing the order of URLs.")
         random.shuffle(urls_to_process)

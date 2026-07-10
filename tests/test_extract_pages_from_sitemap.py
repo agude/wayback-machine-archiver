@@ -1,10 +1,9 @@
 # -*- coding: UTF-8 -*-
-from __future__ import unicode_literals
 from wayback_machine_archiver.sitemaps import extract_urls_from_sitemap
 
 
 def test_ascii_sitemap():
-    SITEMAP = """<?xml version="1.0" encoding="UTF-8"?>
+    SITEMAP = b"""<?xml version="1.0" encoding="UTF-8"?>
         <urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd" xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
         <url>
         <loc>https://alexgude.com/blog/double-checking-538/</loc>
@@ -15,7 +14,7 @@ def test_ascii_sitemap():
         <lastmod>2019-05-09T16:19:45+00:00</lastmod>
         </url>
         </urlset>
-    """.encode("UTF-8")
+    """
 
     URLS = {
         "https://alexgude.com/blog/double-checking-538/",
@@ -53,7 +52,7 @@ def test_unicode_sitemap():
         </image:image>
         </url>
         </urlset>
-    """.encode("UTF-8")
+    """.encode()
 
     URLS = {
         "https://www.radiokeysmusic.com/home",
@@ -66,7 +65,7 @@ def test_unicode_sitemap():
 
 
 def test_sitemap_index():
-    SITEMAP_INDEX = """<?xml version="1.0" encoding="UTF-8"?>
+    SITEMAP_INDEX = b"""<?xml version="1.0" encoding="UTF-8"?>
         <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
         <sitemap>
         <loc>https://example.com/sitemap1.xml</loc>
@@ -75,7 +74,7 @@ def test_sitemap_index():
         <loc>https://example.com/sitemap2.xml</loc>
         </sitemap>
         </sitemapindex>
-    """.encode("UTF-8")
+    """
 
     page_urls, child_sitemaps = extract_urls_from_sitemap(SITEMAP_INDEX)
     assert page_urls == set()

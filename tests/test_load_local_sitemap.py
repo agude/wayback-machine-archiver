@@ -1,9 +1,9 @@
 # -*- coding: UTF-8 -*-
-from __future__ import unicode_literals
-from wayback_machine_archiver.sitemaps import load_local_sitemap, LOCAL_PREFIX
 import os.path
+
 import pytest
 
+from wayback_machine_archiver.sitemaps import LOCAL_PREFIX, load_local_sitemap
 
 SITEMAP = """<?xml version="1.0" encoding="UTF-8"?>
     <urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd" xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -42,7 +42,7 @@ def test_load_local_file_with_prefix(tmpdir):
 
 
 def test_file_does_not_exist(tmpdir):
-    file_path = "{}/tmp/not_a_real_file".format(LOCAL_PREFIX)
+    file_path = f"{LOCAL_PREFIX}/tmp/not_a_real_file"
 
     with pytest.raises(IOError):
         load_local_sitemap(file_path)

@@ -164,9 +164,7 @@ def _poll_pending_jobs(
     if not job_ids_to_check:
         return [], [], []
 
-    batch_statuses: list[dict[str, Any]] = client.check_status_batch(
-        job_ids_to_check
-    )
+    batch_statuses: list[dict[str, Any]] = client.check_status_batch(job_ids_to_check)
 
     for status_data in batch_statuses:
         job_id = status_data.get("job_id")
@@ -244,9 +242,7 @@ def _poll_pending_jobs(
                 del pending_jobs[job_id]
                 failed_urls.append(original_url)
             else:
-                logging.debug(
-                    "Job %s (%s) is still pending...", job_id, original_url
-                )
+                logging.debug("Job %s (%s) is still pending...", job_id, original_url)
 
     # A short sleep after each batch poll to be nice to the API.
     time.sleep(poll_interval_sec)
@@ -346,9 +342,9 @@ def run_archive_workflow(
 
     logging.info("--------------------------------------------------")
     logging.info("Archive workflow complete.")
-    logging.info(f"Total URLs processed: {total_urls}")
-    logging.info(f"Successful captures: {success_count}")
-    logging.info(f"Failed captures: {failure_count}")
+    logging.info("Total URLs processed: %d", total_urls)
+    logging.info("Successful captures: %d", success_count)
+    logging.info("Failed captures: %d", failure_count)
     logging.info("--------------------------------------------------")
 
     return success_count, failure_count

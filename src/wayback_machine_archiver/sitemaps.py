@@ -6,7 +6,6 @@ from collections import deque
 from xml.etree.ElementTree import Element, ParseError
 
 import defusedxml.ElementTree as ET
-
 import requests
 
 from . import REQUEST_TIMEOUT
@@ -67,9 +66,7 @@ def extract_urls_from_sitemap(sitemap_bytes: bytes) -> tuple[set[str], set[str]]
     return urls, set()
 
 
-def _fetch_sitemap_bytes(
-    sitemap_url: str, session: requests.Session
-) -> bytes:
+def _fetch_sitemap_bytes(sitemap_url: str, session: requests.Session) -> bytes:
     """Fetch sitemap bytes from a local or remote source."""
     if sitemap_is_local(sitemap_url):
         logging.debug("The sitemap '%s' is local.", sitemap_url)

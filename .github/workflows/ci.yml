@@ -4,6 +4,32 @@ on:
   workflow_call:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    name: Lint 🧹
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python 🐍
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.14'
+
+    - name: Set up uv 💨
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: latest
+
+    - name: Install dependencies 🏗
+      run: uv pip install --system -e ".[dev]"
+
+    - name: Run ruff check 🔎
+      run: ruff check src/ tests/
+
+    - name: Run ruff format check 🎨
+      run: ruff format --check src/ tests/
+
   typecheck:
     runs-on: ubuntu-latest
     name: Type Check 🔍
