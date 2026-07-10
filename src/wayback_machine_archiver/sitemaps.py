@@ -1,12 +1,9 @@
-from __future__ import annotations
-
 import logging
 import re
 from collections import deque
 from xml.etree.ElementTree import Element, ParseError
 
 import defusedxml.ElementTree as ET
-
 import requests
 
 from . import REQUEST_TIMEOUT
@@ -47,7 +44,7 @@ def sitemap_is_local(sitemap_url: str) -> bool:
 
 def _is_sitemap_index(root: Element, namespace: str) -> bool:
     """Check if the root element is a sitemapindex."""
-    tag = root.tag[len(namespace):] if root.tag.startswith(namespace) else root.tag
+    tag = root.tag.removeprefix(namespace)
     return tag == "sitemapindex"
 
 
@@ -67,9 +64,7 @@ def extract_urls_from_sitemap(sitemap_bytes: bytes) -> tuple[set[str], set[str]]
     return urls, set()
 
 
-def _fetch_sitemap_bytes(
-    sitemap_url: str, session: requests.Session
-) -> bytes:
+def _fetch_sitemap_bytes(sitemap_url: str, session: requests.Session) -> bytes:
     """Fetch sitemap bytes from a local or remote source."""
     if sitemap_is_local(sitemap_url):
         logging.debug("The sitemap '%s' is local.", sitemap_url)

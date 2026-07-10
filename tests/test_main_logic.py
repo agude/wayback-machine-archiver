@@ -33,7 +33,9 @@ def mock_credentials(monkeypatch):
     """Mock environment credentials for Internet Archive API."""
     monkeypatch.setattr(
         "wayback_machine_archiver.archiver.os.getenv",
-        lambda key, default=None: DUMMY_CREDENTIALS if key in CREDENTIAL_ENV_VARS else default,
+        lambda key, default=None: (
+            DUMMY_CREDENTIALS if key in CREDENTIAL_ENV_VARS else default
+        ),
     )
 
 
@@ -41,7 +43,9 @@ def mock_credentials(monkeypatch):
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow")
+@mock.patch(
+    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0)
+)
 @mock.patch("wayback_machine_archiver.archiver.random.shuffle")
 def test_random_order_flag_shuffles_urls(
     mock_shuffle, mock_workflow, mock_sitemaps, cli_args, mock_credentials
@@ -57,7 +61,9 @@ def test_random_order_flag_shuffles_urls(
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow")
+@mock.patch(
+    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0)
+)
 @mock.patch("wayback_machine_archiver.archiver.random.shuffle")
 def test_default_order_does_not_shuffle(
     mock_shuffle, mock_workflow, mock_sitemaps, cli_args, mock_credentials
@@ -73,7 +79,9 @@ def test_default_order_does_not_shuffle(
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow")
+@mock.patch(
+    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0)
+)
 def test_main_builds_and_passes_api_params(
     mock_workflow, mock_sitemaps, cli_args, mock_credentials
 ):
@@ -104,6 +112,35 @@ def test_main_builds_and_passes_api_params(
         "use_user_agent": "TestBot/1.0",
     }
     assert passed_params == expected_params
+
+
+# --- Tests for exit codes ---
+
+
+@mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
+@mock.patch(
+    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 3)
+)
+def test_main_exits_with_code_1_on_failures(
+    mock_workflow, mock_sitemaps, cli_args, mock_credentials
+):
+    """Verify that main() calls sys.exit(1) when any captures fail."""
+    cli_args(["archiver", "http://test.com"])
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+    assert exc_info.value.code == 1
+
+
+@mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
+@mock.patch(
+    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(5, 0)
+)
+def test_main_exits_cleanly_on_success(
+    mock_workflow, mock_sitemaps, cli_args, mock_credentials
+):
+    """Verify that main() exits normally (no SystemExit) when all captures succeed."""
+    cli_args(["archiver", "http://test.com"])
+    main()
 
 
 # --- Integration test for full main() flow ---
@@ -153,9 +190,10 @@ def test_main_end_to_end_with_mocked_timing(
     assert submit_request.method == "POST"
     assert submit_request.url == SPN2Client.SAVE_URL
     assert "url=http" in submit_request.text
-    assert f"LOW {DUMMY_CREDENTIALS}:{DUMMY_CREDENTIALS}" in submit_request.headers[
-        "Authorization"
-    ]
+    assert (
+        f"LOW {DUMMY_CREDENTIALS}:{DUMMY_CREDENTIALS}"
+        in submit_request.headers["Authorization"]
+    )
 
     # Second call should be the status check
     status_request = history[1]
@@ -206,7 +244,9 @@ def test_main_end_to_end_with_mocked_timing(
     "wayback_machine_archiver.archiver.process_sitemaps",
     return_value={EXTRACTED_PAGE_URL},
 )
-@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow")
+@mock.patch(
+    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0)
+)
 def test_archive_sitemap_also_behavior(
     mock_workflow,
     mock_process_sitemaps,

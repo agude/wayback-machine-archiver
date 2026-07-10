@@ -7,13 +7,13 @@ import pytest
 import requests
 
 from wayback_machine_archiver.workflow import (
-    _submit_next_url,
-    _poll_pending_jobs,
-    run_archive_workflow,
     MAX_CONSECUTIVE_POLL_FAILURES,
     MAX_PENDING_JOBS,
     PERMANENT_ERROR_MESSAGES,
     TRANSIENT_ERROR_MESSAGES,
+    _poll_pending_jobs,
+    _submit_next_url,
+    run_archive_workflow,
 )
 
 # --- Tests for _submit_next_url ---
@@ -458,7 +458,11 @@ def test_poll_skips_unknown_job_ids_from_batch_response(mock_sleep, caplog):
 
     # API returns 3 jobs: one unknown, one success, one still pending
     mock_client.check_status_batch.return_value = [
-        {"status": "success", "job_id": "unknown-job-not-in-pending", "timestamp": "20250115"},
+        {
+            "status": "success",
+            "job_id": "unknown-job-not-in-pending",
+            "timestamp": "20250115",
+        },
         {"status": "success", "job_id": "known-job-1", "timestamp": "20250115"},
         {"status": "pending", "job_id": "known-job-2"},
     ]
@@ -672,7 +676,10 @@ def test_workflow_fails_all_after_max_consecutive_poll_failures(
     with caplog.at_level(logging.ERROR):
         run_archive_workflow(mock_client, ["http://a.com"], 0, {})
 
-    assert f"Polling failed {MAX_CONSECUTIVE_POLL_FAILURES} consecutive times" in caplog.text
+    assert (
+        f"Polling failed {MAX_CONSECUTIVE_POLL_FAILURES} consecutive times"
+        in caplog.text
+    )
 
 
 # --- Tests for concurrency cap ---

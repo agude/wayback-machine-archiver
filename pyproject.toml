@@ -1,25 +1,30 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayback-machine-archiver"
-version = "3.7.0"
+version = "4.0.0"
 description = "A Python script to submit web pages to the Wayback Machine for archiving."
 readme = "README.md"
 authors = [
     { name = "Alexander Gude", email = "alex.public.account@gmail.com" },
 ]
-license = { file = "LICENSE" }
-requires-python = ">=3.8"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: System Administrators",
-    "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Utilities",
 ]
 keywords = ["Internet Archive", "Wayback Machine"]
@@ -42,10 +47,11 @@ dev = [
     "requests-mock",
     "bump-my-version",
     "types-defusedxml",
+    "ruff",
 ]
 
 [tool.bumpversion]
-current_version = "3.7.0"
+current_version = "4.0.0"
 commit = true
 tag = true
 message = "Bump version to {new_version}"
@@ -59,3 +65,10 @@ replace = 'version = "{new_version}"'
 filename = "src/wayback_machine_archiver/__init__.py"
 search = '__version__ = "{current_version}"'
 replace = '__version__ = "{new_version}"'
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "G"]
+ignore = ["E501"]

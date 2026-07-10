@@ -31,9 +31,9 @@ def mock_credentials(monkeypatch):
     """Mock environment credentials for Internet Archive API."""
     monkeypatch.setattr(
         "wayback_machine_archiver.archiver.os.getenv",
-        lambda key, default=None: DUMMY_CREDENTIALS
-        if key in CREDENTIAL_ENV_VARS
-        else default,
+        lambda key, default=None: (
+            DUMMY_CREDENTIALS if key in CREDENTIAL_ENV_VARS else default
+        ),
     )
 
 
@@ -54,7 +54,9 @@ def mock_no_credentials(monkeypatch):
     [("info", "INFO"), ("DEBUG", "DEBUG")],
 )
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow")
+@mock.patch(
+    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0)
+)
 @mock.patch("wayback_machine_archiver.archiver.logging.basicConfig")
 def test_log_level(
     mock_basic_config,
@@ -77,7 +79,9 @@ def test_log_level(
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow")
+@mock.patch(
+    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0)
+)
 @mock.patch("wayback_machine_archiver.archiver.logging.basicConfig")
 def test_log_to_file(
     mock_basic_config, mock_workflow, mock_sitemaps, cli_args, mock_credentials
@@ -99,10 +103,12 @@ def test_log_to_file(
 
 @pytest.mark.parametrize(
     "user_input, expected_wait",
-    [(2, 5), (10, 10)],
+    [(2, 9), (10, 10)],
 )
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow")
+@mock.patch(
+    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0)
+)
 def test_rate_limit_override(
     mock_workflow, mock_sitemaps, user_input, expected_wait, cli_args, mock_credentials
 ):
@@ -236,7 +242,9 @@ def test_is_valid_url(url, expected):
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow")
+@mock.patch(
+    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0)
+)
 def test_invalid_urls_are_filtered_with_warning(
     mock_workflow, mock_sitemaps, cli_args, mock_credentials, caplog
 ):

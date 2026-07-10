@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import logging
 
@@ -65,7 +63,7 @@ def create_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--rate-limit-wait",
-        help="Specifies the number of seconds to wait between submissions. A minimum of 5 seconds is enforced for authenticated users. Defaults to 15.",
+        help="Specifies the number of seconds to wait between submissions. A minimum of 9 seconds is enforced to stay within the API's 7 captures/minute limit. Defaults to 15.",
         dest="rate_limit_in_sec",
         default=15,
         type=int,

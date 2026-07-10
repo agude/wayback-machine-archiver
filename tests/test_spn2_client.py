@@ -1,8 +1,10 @@
-import pytest
-from wayback_machine_archiver.clients import BATCH_STATUS_CHUNK_SIZE, SPN2Client
-from requests.adapters import HTTPAdapter
-import requests
 import urllib.parse
+
+import pytest
+import requests
+from requests.adapters import HTTPAdapter
+
+from wayback_machine_archiver.clients import BATCH_STATUS_CHUNK_SIZE, SPN2Client
 
 
 @pytest.fixture

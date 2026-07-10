@@ -1,8 +1,8 @@
 import pytest
-from wayback_machine_archiver.sitemaps import download_remote_sitemap
-from requests.adapters import HTTPAdapter
 import requests
+from requests.adapters import HTTPAdapter
 
+from wayback_machine_archiver.sitemaps import download_remote_sitemap
 
 SITEMAP = """<?xml version="1.0" encoding="UTF-8"?>
     <urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd" xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
