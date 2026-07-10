@@ -114,6 +114,35 @@ def test_main_builds_and_passes_api_params(
     assert passed_params == expected_params
 
 
+# --- Tests for exit codes ---
+
+
+@mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
+@mock.patch(
+    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 3)
+)
+def test_main_exits_with_code_1_on_failures(
+    mock_workflow, mock_sitemaps, cli_args, mock_credentials
+):
+    """Verify that main() calls sys.exit(1) when any captures fail."""
+    cli_args(["archiver", "http://test.com"])
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+    assert exc_info.value.code == 1
+
+
+@mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
+@mock.patch(
+    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(5, 0)
+)
+def test_main_exits_cleanly_on_success(
+    mock_workflow, mock_sitemaps, cli_args, mock_credentials
+):
+    """Verify that main() exits normally (no SystemExit) when all captures succeed."""
+    cli_args(["archiver", "http://test.com"])
+    main()
+
+
 # --- Integration test for full main() flow ---
 
 

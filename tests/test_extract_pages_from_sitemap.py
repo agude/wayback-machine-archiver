@@ -1,4 +1,3 @@
-# -*- coding: UTF-8 -*-
 from wayback_machine_archiver.sitemaps import extract_urls_from_sitemap
 
 

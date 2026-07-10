@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import logging
 import os
@@ -188,7 +186,7 @@ def main() -> None:
     client = SPN2Client(
         session=client_session, access_key=access_key, secret_key=secret_key
     )
-    _success_count, failure_count = run_archive_workflow(
+    _, failure_count = run_archive_workflow(
         client, urls_to_process, rate_limit, api_params
     )
 
