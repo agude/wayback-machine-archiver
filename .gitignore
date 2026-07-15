@@ -118,5 +118,6 @@ tags
 urls.txt
 archived_urls.csv
 archived_urls*.csv
+pending_urls.txt
 
 /out.log
