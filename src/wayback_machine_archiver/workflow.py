@@ -90,6 +90,16 @@ class PendingJob(TypedDict):
     submitted_at: float
 
 
+# The value written to the ARCHIVE_URL column of the CSV log for failed URLs.
+CSV_ARCHIVE_ERROR_MARKER = "archive_error"
+
+
+def _log_to_csv(csv_writer: Any | None, url: str, archive_url: str) -> None:
+    """Writes a (URL, ARCHIVE_URL) row to the CSV log, if one is configured."""
+    if csv_writer is not None:
+        csv_writer.writerow([url, archive_url])
+
+
 def _submit_next_url(
     urls_to_process: list[str],
     client: SPN2Client,
@@ -101,7 +111,7 @@ def _submit_next_url(
 ) -> str | None:
     """
     Pops the next URL, submits it, and adds its job_id to pending_jobs.
-    Returns 'failed' on a definitive failure, otherwise None.
+    Returns the URL on a definitive failure, otherwise None.
     """
     url = urls_to_process.pop(0)
     attempt_num = submission_attempts.get(url, 0) + 1
@@ -109,7 +119,7 @@ def _submit_next_url(
 
     if attempt_num > max_retries:
         logging.error("URL %s failed submission %d times, giving up.", url, max_retries)
-        return "failed"
+        return url
 
     try:
         logging.info("Submitting %s (attempt %d/%d)...", url, attempt_num, max_retries)
@@ -148,12 +158,13 @@ def _poll_pending_jobs(
     max_transient_retries: int,
     job_timeout_sec: float,
     poll_interval_sec: float = 0.2,
-) -> tuple[list[str], list[str], list[str]]:
+) -> tuple[list[tuple[str, str]], list[str], list[str]]:
     """
     Checks the status of all pending jobs using a single batch request.
-    Returns a tuple of (successful_urls, failed_urls, requeued_urls) for completed jobs.
+    Returns a tuple of (successful, failed_urls, requeued_urls) for completed jobs,
+    where successful is a list of (url, archive_url) tuples.
     """
-    successful_urls: list[str] = []
+    successful: list[tuple[str, str]] = []
     failed_urls: list[str] = []
     requeued_urls: list[str] = []
 
@@ -181,7 +192,7 @@ def _poll_pending_jobs(
             archive_url = f"https://web.archive.org/web/{timestamp}/{original_url}"
             logging.info("Success for job %s: %s", job_id, archive_url)
             del pending_jobs[job_id]
-            successful_urls.append(original_url)
+            successful.append((original_url, archive_url))
         elif status == "error":
             status_ext: str = status_data.get("status_ext", "error:unknown")
             api_message = status_data.get("message", "Unknown error")
@@ -245,7 +256,7 @@ def _poll_pending_jobs(
     # A short sleep after each batch poll to be nice to the API.
     time.sleep(poll_interval_sec)
 
-    return successful_urls, failed_urls, requeued_urls
+    return successful, failed_urls, requeued_urls
 
 
 def run_archive_workflow(
@@ -253,8 +264,14 @@ def run_archive_workflow(
     urls_to_process: list[str],
     rate_limit_in_sec: float,
     api_params: dict[str, str | int],
+    csv_writer: Any | None = None,
 ) -> tuple[int, int]:
-    """Manages the main loop for submitting and polling URLs."""
+    """Manages the main loop for submitting and polling URLs.
+
+    If csv_writer is provided, a (URL, ARCHIVE_URL) row is written for every
+    URL that reaches a final state, using CSV_ARCHIVE_ERROR_MARKER in place
+    of the archive URL for failures.
+    """
     pending_jobs: dict[str, PendingJob] = {}
     submission_attempts: dict[str, int] = {}
     transient_error_retries: dict[str, int] = {}
@@ -272,7 +289,7 @@ def run_archive_workflow(
 
     while urls_to_process or pending_jobs:
         if urls_to_process and len(pending_jobs) < MAX_PENDING_JOBS:
-            status = _submit_next_url(
+            failed_url = _submit_next_url(
                 urls_to_process,
                 client,
                 pending_jobs,
@@ -280,8 +297,9 @@ def run_archive_workflow(
                 submission_attempts,
                 api_params,
             )
-            if status == "failed":
+            if failed_url is not None:
                 failure_count += 1
+                _log_to_csv(csv_writer, failed_url, CSV_ARCHIVE_ERROR_MARKER)
             polling_wait_time = INITIAL_POLLING_WAIT
 
         if pending_jobs:
@@ -308,6 +326,8 @@ def run_archive_workflow(
                         len(pending_jobs),
                     )
                     failure_count += len(pending_jobs)
+                    for job in pending_jobs.values():
+                        _log_to_csv(csv_writer, job["url"], CSV_ARCHIVE_ERROR_MARKER)
                     pending_jobs.clear()
                 else:
                     time.sleep(polling_wait_time)
@@ -320,6 +340,10 @@ def run_archive_workflow(
             consecutive_poll_failures = 0
             success_count += len(successful)
             failure_count += len(failed)
+            for url, archive_url in successful:
+                _log_to_csv(csv_writer, url, archive_url)
+            for url in failed:
+                _log_to_csv(csv_writer, url, CSV_ARCHIVE_ERROR_MARKER)
             if requeued:
                 urls_to_process.extend(requeued)
                 logging.info(

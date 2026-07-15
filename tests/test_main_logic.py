@@ -202,6 +202,66 @@ def test_main_end_to_end_with_mocked_timing(
     assert TEST_JOB_ID in status_request.text
 
 
+# --- Tests for --csv-log ---
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+@mock.patch("wayback_machine_archiver.clients.time.sleep")
+def test_csv_log_writes_header_and_success_row(
+    _mock_client_sleep, _mock_workflow_sleep, cli_args, mock_credentials, requests_mock, tmp_path
+):
+    """Verify --csv-log creates the file with a header and a row per successful capture."""
+    csv_path = tmp_path / "archived_urls.csv"
+    url_to_archive = "http://integration-test.com"
+
+    requests_mock.post(
+        SPN2Client.SAVE_URL, json={"job_id": TEST_JOB_ID}, status_code=200
+    )
+    requests_mock.post(
+        SPN2Client.STATUS_URL,
+        json=[{"status": "success", "job_id": TEST_JOB_ID, "timestamp": TEST_TIMESTAMP}],
+        status_code=200,
+    )
+
+    cli_args(["archiver", url_to_archive, "--csv-log", str(csv_path)])
+    main()
+
+    rows = csv_path.read_text().splitlines()
+    assert rows[0] == "URL,ARCHIVE_URL"
+    assert rows[1] == (
+        f"{url_to_archive},https://web.archive.org/web/{TEST_TIMESTAMP}/{url_to_archive}"
+    )
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+@mock.patch("wayback_machine_archiver.clients.time.sleep")
+def test_csv_log_appends_without_duplicating_header(
+    _mock_client_sleep, _mock_workflow_sleep, cli_args, mock_credentials, requests_mock, tmp_path
+):
+    """Verify --csv-log appends to an existing file rather than rewriting the header."""
+    csv_path = tmp_path / "archived_urls.csv"
+    csv_path.write_text("URL,ARCHIVE_URL\nhttp://previous.com,https://web.archive.org/web/1/http://previous.com\n")
+
+    url_to_archive = "http://integration-test.com"
+    requests_mock.post(
+        SPN2Client.SAVE_URL, json={"job_id": TEST_JOB_ID}, status_code=200
+    )
+    requests_mock.post(
+        SPN2Client.STATUS_URL,
+        json=[{"status": "success", "job_id": TEST_JOB_ID, "timestamp": TEST_TIMESTAMP}],
+        status_code=200,
+    )
+
+    cli_args(["archiver", url_to_archive, "--csv-log", str(csv_path)])
+    main()
+
+    rows = csv_path.read_text().splitlines()
+    assert rows.count("URL,ARCHIVE_URL") == 1
+    assert rows[-1] == (
+        f"{url_to_archive},https://web.archive.org/web/{TEST_TIMESTAMP}/{url_to_archive}"
+    )
+
+
 # --- Tests for --archive-sitemap-also flag ---
 
 

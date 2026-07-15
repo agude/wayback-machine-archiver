@@ -75,6 +75,20 @@ def create_parser() -> argparse.ArgumentParser:
         default=False,
         action="store_true",
     )
+    parser.add_argument(
+        "--csv-log",
+        help=(
+            "Appends each archived URL and its resulting archive URL to a CSV file "
+            "(columns: URL, ARCHIVE_URL). Failed URLs are logged with 'archive_error' "
+            "in the ARCHIVE_URL column. Defaults to 'archived_urls.csv' in the current "
+            "directory if no path is given."
+        ),
+        dest="csv_log_path",
+        nargs="?",
+        const="archived_urls.csv",
+        default=None,
+        metavar="<path>",
+    )
 
     # --- SPN2 API Options ---
     api_group = parser.add_argument_group(

@@ -1,8 +1,10 @@
 import argparse
+import csv
 import logging
 import os
 import random
 import sys
+from typing import IO, Any
 from urllib.parse import urlparse
 
 import requests
@@ -136,6 +138,16 @@ def _gather_urls(args: argparse.Namespace) -> set[str]:
     return urls
 
 
+def _open_csv_log(path: str) -> tuple[IO[str], Any]:
+    """Opens the CSV log file in append mode, writing a header if it's new/empty."""
+    file_is_new = not os.path.exists(path) or os.path.getsize(path) == 0
+    csv_file = open(path, "a", newline="", encoding="utf-8")
+    writer = csv.writer(csv_file)
+    if file_is_new:
+        writer.writerow(["URL", "ARCHIVE_URL"])
+    return csv_file, writer
+
+
 def _filter_valid_urls(urls: set[str]) -> set[str]:
     """Filter out invalid URLs and log warnings for them."""
     invalid_urls = {url for url in urls if not _is_valid_url(url)}
@@ -186,9 +198,20 @@ def main() -> None:
     client = SPN2Client(
         session=client_session, access_key=access_key, secret_key=secret_key
     )
-    _, failure_count = run_archive_workflow(
-        client, urls_to_process, rate_limit, api_params
-    )
+
+    csv_file = None
+    csv_writer = None
+    if args.csv_log_path:
+        logging.info("Logging archive results to CSV file: %s", args.csv_log_path)
+        csv_file, csv_writer = _open_csv_log(args.csv_log_path)
+
+    try:
+        _, failure_count = run_archive_workflow(
+            client, urls_to_process, rate_limit, api_params, csv_writer=csv_writer
+        )
+    finally:
+        if csv_file:
+            csv_file.close()
 
     if failure_count > 0:
         sys.exit(1)

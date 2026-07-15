@@ -214,7 +214,7 @@ def test_poll_uses_batch_and_removes_completed_jobs(mock_sleep):
     # --- Check the new data structure in the assertion ---
     assert list(pending_jobs.keys()) == ["job-pending"]
     assert pending_jobs["job-pending"]["url"] == "http://c.com"
-    assert successful == ["http://a.com"]
+    assert successful == [("http://a.com", "https://web.archive.org/web/20250101/http://a.com")]
     assert failed == ["http://b.com"]
     assert requeued == []
     mock_sleep.assert_called_once()
@@ -347,9 +347,12 @@ def test_run_archive_workflow_dynamic_polling_is_fast_and_correct(
             return [], [], []  # No success, no failure, no requeue
         else:  # Simulate success on the 4th call
             # --- Extract URLs from the new data structure ---
-            successful_urls = [job["url"] for job in pending_jobs_dict.values()]
+            successful = [
+                (job["url"], f"https://web.archive.org/web/x/{job['url']}")
+                for job in pending_jobs_dict.values()
+            ]
             pending_jobs_dict.clear()
-            return successful_urls, [], []
+            return successful, [], []
 
     mock_poll.side_effect = poll_side_effect
 
@@ -483,7 +486,7 @@ def test_poll_skips_unknown_job_ids_from_batch_response(mock_sleep, caplog):
         )
 
     # The unknown job should be ignored - only known-job-1 is marked successful
-    assert successful == ["http://a.com"]
+    assert successful == [("http://a.com", "https://web.archive.org/web/20250115/http://a.com")]
     assert failed == []
     assert requeued == []
 
@@ -527,7 +530,9 @@ def test_poll_handles_missing_job_id_field_in_response(mock_sleep, caplog):
         )
 
     # Only the valid job should be processed
-    assert successful == ["http://valid.com"]
+    assert successful == [
+        ("http://valid.com", "https://web.archive.org/web/20250115/http://valid.com")
+    ]
     assert failed == []
     assert requeued == []
     assert not pending_jobs  # Should be empty now
@@ -638,9 +643,12 @@ def test_workflow_survives_transient_poll_failures(
         call_count += 1
         if call_count == 1:
             raise requests.exceptions.ConnectionError("blip")
-        successful_urls = [job["url"] for job in pending_jobs_dict.values()]
+        successful = [
+            (job["url"], f"https://web.archive.org/web/x/{job['url']}")
+            for job in pending_jobs_dict.values()
+        ]
         pending_jobs_dict.clear()
-        return successful_urls, [], []
+        return successful, [], []
 
     mock_poll.side_effect = poll_side_effect
 
@@ -711,10 +719,83 @@ def test_workflow_caps_in_flight_jobs(mock_submit, mock_poll, mock_sleep):
         max_concurrent_seen = max(max_concurrent_seen, len(pending_jobs_dict))
         first_key = next(iter(pending_jobs_dict))
         url = pending_jobs_dict.pop(first_key)["url"]
-        return [url], [], []
+        return [(url, f"https://web.archive.org/web/x/{url}")], [], []
 
     mock_poll.side_effect = poll_side_effect
 
     run_archive_workflow(mock_client, list(urls), 0, {})
 
     assert max_concurrent_seen <= MAX_PENDING_JOBS
+
+
+# --- Tests for CSV logging ---
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+@mock.patch("wayback_machine_archiver.workflow._poll_pending_jobs")
+@mock.patch("wayback_machine_archiver.workflow._submit_next_url")
+def test_csv_writer_receives_rows_for_success_and_failure(
+    mock_submit, mock_poll, mock_sleep
+):
+    """
+    Verify that run_archive_workflow writes a (url, archive_url) row for
+    successful captures and a (url, archive_error) row for failed ones.
+    """
+    mock_client = mock.Mock()
+    urls = ["http://good.com", "http://bad.com"]
+
+    def submit_side_effect(urls_proc, client_arg, pending_jobs_dict, *args, **kwargs):
+        url = urls_proc.pop(0)
+        pending_jobs_dict[f"job-{url}"] = {"url": url, "submitted_at": time.time()}
+        return None
+
+    mock_submit.side_effect = submit_side_effect
+
+    def poll_side_effect(client_arg, pending_jobs_dict, *args, **kwargs):
+        successful = []
+        failed = []
+        for job_id, job in list(pending_jobs_dict.items()):
+            if job["url"] == "http://good.com":
+                successful.append(
+                    (job["url"], "https://web.archive.org/web/x/http://good.com")
+                )
+            else:
+                failed.append(job["url"])
+            del pending_jobs_dict[job_id]
+        return successful, failed, []
+
+    mock_poll.side_effect = poll_side_effect
+
+    mock_csv_writer = mock.Mock()
+    run_archive_workflow(mock_client, urls, 0, {}, csv_writer=mock_csv_writer)
+
+    mock_csv_writer.writerow.assert_any_call(
+        ["http://good.com", "https://web.archive.org/web/x/http://good.com"]
+    )
+    mock_csv_writer.writerow.assert_any_call(["http://bad.com", "archive_error"])
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+@mock.patch("wayback_machine_archiver.workflow._poll_pending_jobs")
+@mock.patch("wayback_machine_archiver.workflow._submit_next_url")
+def test_csv_writer_logs_submission_failures(mock_submit, mock_poll, mock_sleep):
+    """
+    Verify that a URL which permanently fails at the submission stage (before
+    ever getting a job_id) is still logged to the CSV with the error marker.
+    """
+    mock_client = mock.Mock()
+    mock_submit.side_effect = lambda urls_proc, *a, **kw: urls_proc.pop(0)
+    mock_poll.return_value = ([], [], [])
+    mock_csv_writer = mock.Mock()
+
+    run_archive_workflow(
+        mock_client,
+        ["http://will-fail.com"],
+        0,
+        {},
+        csv_writer=mock_csv_writer,
+    )
+
+    mock_csv_writer.writerow.assert_called_once_with(
+        ["http://will-fail.com", "archive_error"]
+    )

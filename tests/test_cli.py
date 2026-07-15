@@ -206,6 +206,30 @@ def test_api_option_flags_are_parsed_correctly():
     assert args.use_user_agent == "MyTestAgent/1.0"
 
 
+# --- Tests for --csv-log ---
+
+
+def test_csv_log_defaults_to_none():
+    """Verify that --csv-log is off by default."""
+    parser = create_parser()
+    args = parser.parse_args([])
+    assert args.csv_log_path is None
+
+
+def test_csv_log_bare_flag_uses_default_filename():
+    """Verify that passing --csv-log without a value uses the default filename."""
+    parser = create_parser()
+    args = parser.parse_args(["--csv-log"])
+    assert args.csv_log_path == "archived_urls.csv"
+
+
+def test_csv_log_accepts_custom_path():
+    """Verify that --csv-log accepts a custom path."""
+    parser = create_parser()
+    args = parser.parse_args(["--csv-log", "/tmp/my-archive.csv"])
+    assert args.csv_log_path == "/tmp/my-archive.csv"
+
+
 # --- Tests for URL validation ---
 
 
