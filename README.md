@@ -80,6 +80,15 @@ archiver https://alexgude.com --capture-screenshot --if-not-archived-within 10d
 archiver --sitemaps https://alexgude.com/sitemaps.xml --archive-sitemap-also
 ```
 
+**Log results to a CSV file:**
+(Appends a `URL,ARCHIVE_URL` row per page to `archived_urls.csv` in the current
+directory; failed URLs are logged with `archive_error` in the `ARCHIVE_URL`
+column. Pass a path to `--csv-log` to use a different file.)
+```bash
+archiver https://airesistlist.org --csv-log
+archiver https://airesistlist.org --csv-log path/to/results.csv
+```
+
 ## Authentication (Required)
 
 As of version 3.0.0, this tool requires authentication with the Internet
@@ -117,6 +126,7 @@ usage: archiver [-h] [--version] [--file FILE]
                 [--archive-sitemap-also]
                 [--rate-limit-wait RATE_LIMIT_IN_SEC]
                 [--random-order] [--capture-all]
+                [--csv-log [<path>]]
                 [--capture-outlinks] [--capture-screenshot]
                 [--delay-wb-availability] [--force-get]
                 [--skip-first-archive] [--email-result]
@@ -153,6 +163,11 @@ options:
                         submissions. A minimum of 5 seconds is enforced for
                         authenticated users. Defaults to 15.
   --random-order        Randomizes the order of pages before archiving.
+  --csv-log [<path>]    Appends each archived URL and its resulting archive
+                        URL to a CSV file (columns: URL, ARCHIVE_URL). Failed
+                        URLs are logged with 'archive_error' in the
+                        ARCHIVE_URL column. Defaults to 'archived_urls.csv' in
+                        the current directory if no path is given.
 
 SPN2 API Options:
   Control the behavior of the Internet Archive capture API.
