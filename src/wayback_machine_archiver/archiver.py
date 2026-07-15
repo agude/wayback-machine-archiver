@@ -138,11 +138,31 @@ def _gather_urls(args: argparse.Namespace) -> set[str]:
     return urls
 
 
+# How many CSV rows to buffer before flushing to disk. 
+# Bounds how much archiving progress could be lost if the process is killed mid-run.
+CSV_FLUSH_INTERVAL = 2
+
+
+class _FlushingCsvWriter:
+    """A csv.writer wrapper that flushes the underlying file every CSV_FLUSH_INTERVAL rows."""
+
+    def __init__(self, csv_file: IO[str]) -> None:
+        self._writer = csv.writer(csv_file)
+        self._csv_file = csv_file
+        self._rows_written = 0
+
+    def writerow(self, row: list[str]) -> None:
+        self._writer.writerow(row)
+        self._rows_written += 1
+        if self._rows_written % CSV_FLUSH_INTERVAL == 0:
+            self._csv_file.flush()
+
+
 def _open_csv_log(path: str) -> tuple[IO[str], Any]:
     """Opens the CSV log file in append mode, writing a header if it's new/empty."""
     file_is_new = not os.path.exists(path) or os.path.getsize(path) == 0
     csv_file = open(path, "a", newline="", encoding="utf-8")
-    writer = csv.writer(csv_file)
+    writer = _FlushingCsvWriter(csv_file)
     if file_is_new:
         writer.writerow(["URL", "ARCHIVE_URL"])
     return csv_file, writer

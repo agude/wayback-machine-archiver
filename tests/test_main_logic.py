@@ -5,7 +5,11 @@ from unittest import mock
 
 import pytest
 
-from wayback_machine_archiver.archiver import main
+from wayback_machine_archiver.archiver import (
+    CSV_FLUSH_INTERVAL,
+    _FlushingCsvWriter,
+    main,
+)
 from wayback_machine_archiver.clients import SPN2Client
 
 # Test constants
@@ -260,6 +264,26 @@ def test_csv_log_appends_without_duplicating_header(
     assert rows[-1] == (
         f"{url_to_archive},https://web.archive.org/web/{TEST_TIMESTAMP}/{url_to_archive}"
     )
+
+
+def test_flushing_csv_writer_flushes_every_interval_rows(tmp_path):
+    """
+    Verify _FlushingCsvWriter only flushes to disk every CSV_FLUSH_INTERVAL
+    rows, bounding how much progress a crash mid-run could lose.
+    """
+    csv_path = tmp_path / "flush_test.csv"
+    with open(csv_path, "w", newline="", encoding="utf-8") as csv_file:
+        writer = _FlushingCsvWriter(csv_file)
+
+        for i in range(CSV_FLUSH_INTERVAL - 1):
+            writer.writerow([f"http://example.com/{i}", "archive_error"])
+        # Rows are buffered in the writer's own file handle; a separate read
+        # handle should see nothing until a flush happens.
+        assert csv_path.read_text() == ""
+
+        writer.writerow(["http://example.com/last", "archive_error"])
+        # The CSV_FLUSH_INTERVAL-th row triggers a flush.
+        assert len(csv_path.read_text().splitlines()) == CSV_FLUSH_INTERVAL
 
 
 # --- Tests for --archive-sitemap-also flag ---
