@@ -113,8 +113,9 @@ tags
 .nfs*
 
 .vscode/
-
-/urls.txt
-/out.log
-
 .idea
+
+urls.txt
+archived_urls.csv
+
+/out.log
