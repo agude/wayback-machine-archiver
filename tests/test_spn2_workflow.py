@@ -11,6 +11,7 @@ from wayback_machine_archiver.workflow import (
     MAX_PENDING_JOBS,
     PERMANENT_ERROR_MESSAGES,
     TRANSIENT_ERROR_MESSAGES,
+    ArchiveResult,
     _poll_pending_jobs,
     _submit_next_url,
     run_archive_workflow,
@@ -718,3 +719,233 @@ def test_workflow_caps_in_flight_jobs(mock_submit, mock_poll, mock_sleep):
     run_archive_workflow(mock_client, list(urls), 0, {})
 
     assert max_concurrent_seen <= MAX_PENDING_JOBS
+
+
+# --- Tests for on_result callback ---
+
+
+def _collect_result():
+    """Helper: returns a (list, callback) pair for capturing on_result calls."""
+    results: list[ArchiveResult] = []
+    return results, results.append
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_callback_fires_on_success(mock_sleep):
+    """Verify on_result is called with status 'success' and the archive URL."""
+    mock_client = mock.Mock()
+    mock_client.check_status_batch.return_value = [
+        {"status": "success", "job_id": "job-1", "timestamp": "20250101"},
+    ]
+
+    now = time.time()
+    pending_jobs = {"job-1": {"url": "http://a.com", "submitted_at": now}}
+    results, callback = _collect_result()
+
+    _poll_pending_jobs(
+        mock_client,
+        pending_jobs,
+        transient_error_retries={},
+        max_transient_retries=3,
+        job_timeout_sec=7200,
+        on_result=callback,
+    )
+
+    assert results == [
+        ArchiveResult(
+            url="http://a.com",
+            status="success",
+            archive_url="https://web.archive.org/web/20250101/http://a.com",
+            error_code=None,
+            job_id="job-1",
+        )
+    ]
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_callback_fires_on_permanent_error(mock_sleep):
+    """Verify on_result reports 'failed' with the API error code."""
+    mock_client = mock.Mock()
+    mock_client.check_status_batch.return_value = [
+        {
+            "status": "error",
+            "job_id": "job-1",
+            "status_ext": "error:not-found",
+            "message": "Page not found",
+        },
+    ]
+
+    pending_jobs = {"job-1": {"url": "http://gone.com", "submitted_at": time.time()}}
+    results, callback = _collect_result()
+
+    _poll_pending_jobs(
+        mock_client,
+        pending_jobs,
+        transient_error_retries={},
+        max_transient_retries=3,
+        job_timeout_sec=7200,
+        on_result=callback,
+    )
+
+    assert results == [ArchiveResult(url="http://gone.com", status="failed", archive_url=None, error_code="error:not-found", job_id="job-1")]
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_callback_fires_on_transient_exhaustion(mock_sleep):
+    """Verify on_result fires 'failed' with the API error code when retries are exhausted."""
+    mock_client = mock.Mock()
+    mock_client.check_status_batch.return_value = [
+        {
+            "status": "error",
+            "job_id": "job-1",
+            "status_ext": "error:service-unavailable",
+            "message": "Down",
+        },
+    ]
+
+    pending_jobs = {"job-1": {"url": "http://flaky.com", "submitted_at": time.time()}}
+    results, callback = _collect_result()
+
+    _poll_pending_jobs(
+        mock_client,
+        pending_jobs,
+        transient_error_retries={"http://flaky.com": 3},
+        max_transient_retries=3,
+        job_timeout_sec=7200,
+        on_result=callback,
+    )
+
+    assert results == [ArchiveResult(url="http://flaky.com", status="failed", archive_url=None, error_code="error:service-unavailable", job_id="job-1")]
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_callback_does_not_fire_on_transient_requeue(mock_sleep):
+    """Verify on_result does NOT fire when a transient error is re-queued."""
+    mock_client = mock.Mock()
+    mock_client.check_status_batch.return_value = [
+        {
+            "status": "error",
+            "job_id": "job-1",
+            "status_ext": "error:service-unavailable",
+            "message": "Down",
+        },
+    ]
+
+    pending_jobs = {"job-1": {"url": "http://retry.com", "submitted_at": time.time()}}
+    results, callback = _collect_result()
+
+    _poll_pending_jobs(
+        mock_client,
+        pending_jobs,
+        transient_error_retries={},
+        max_transient_retries=3,
+        job_timeout_sec=7200,
+        on_result=callback,
+    )
+
+    assert results == []
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_callback_fires_on_timeout(mock_sleep):
+    """Verify on_result fires with status 'failed' and error_code 'timeout'."""
+    mock_client = mock.Mock()
+    mock_client.check_status_batch.return_value = [
+        {"status": "pending", "job_id": "job-stuck"},
+    ]
+
+    stale = time.time() - 7200
+    pending_jobs = {"job-stuck": {"url": "http://stuck.com", "submitted_at": stale}}
+    results, callback = _collect_result()
+
+    _poll_pending_jobs(
+        mock_client,
+        pending_jobs,
+        transient_error_retries={},
+        max_transient_retries=3,
+        job_timeout_sec=3600,
+        on_result=callback,
+    )
+
+    assert results == [ArchiveResult(url="http://stuck.com", status="failed", archive_url=None, error_code="timeout", job_id="job-stuck")]
+
+
+def test_callback_fires_on_submit_failure():
+    """Verify on_result fires 'failed' with error_code 'submit_failed'."""
+    mock_client = mock.Mock()
+    results, callback = _collect_result()
+
+    _submit_next_url(
+        ["http://doomed.com"],
+        mock_client,
+        {},
+        5,
+        {"http://doomed.com": 3},
+        api_params={},
+        max_retries=3,
+        on_result=callback,
+    )
+
+    assert results == [ArchiveResult(url="http://doomed.com", status="failed", archive_url=None, error_code="submit_failed", job_id=None)]
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+@mock.patch("wayback_machine_archiver.workflow._poll_pending_jobs")
+@mock.patch("wayback_machine_archiver.workflow._submit_next_url")
+def test_callback_fires_on_poll_failure_bailout(mock_submit, mock_poll, mock_sleep):
+    """Verify on_result fires 'failed' with error_code 'poll_failure' for each pending job."""
+    mock_client = mock.Mock()
+
+    def submit_side_effect(urls_proc, client_arg, pending_jobs_dict, *args, **kwargs):
+        url = urls_proc.pop(0)
+        pending_jobs_dict[f"job-{url}"] = {"url": url, "submitted_at": time.time()}
+        return None
+
+    mock_submit.side_effect = submit_side_effect
+    mock_poll.side_effect = requests.exceptions.ConnectionError("persistent failure")
+
+    results, callback = _collect_result()
+
+    run_archive_workflow(
+        mock_client,
+        ["http://a.com"],
+        0,
+        {},
+        on_result=callback,
+    )
+
+    assert results == [ArchiveResult(url="http://a.com", status="failed", archive_url=None, error_code="poll_failure", job_id="job-http://a.com")]
+
+
+# --- Requeue-then-success test ---
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_callback_requeue_then_success_produces_one_record(mock_sleep):
+    """A URL that gets requeued after a transient error and then succeeds
+    should produce exactly one 'success' record, not a failure + success."""
+    mock_client = mock.Mock()
+    mock_client.submit_capture.side_effect = ["job-1", "job-2"]
+    mock_client.check_status_batch.side_effect = [
+        [{"status": "error", "job_id": "job-1", "status_ext": "error:service-unavailable", "message": "Down"}],
+        [{"status": "success", "job_id": "job-2", "timestamp": "20250101"}],
+    ]
+
+    results, callback = _collect_result()
+
+    run_archive_workflow(
+        mock_client,
+        ["http://retry-me.com"],
+        0,
+        {},
+        on_result=callback,
+    )
+
+    assert len(results) == 1
+    assert results[0] == ArchiveResult(
+        url="http://retry-me.com",
+        status="success",
+        archive_url="https://web.archive.org/web/20250101/http://retry-me.com",
+        error_code=None,
+        job_id="job-2",
+    )

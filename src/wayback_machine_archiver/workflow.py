@@ -1,10 +1,25 @@
 import logging
 import time
-from typing import Any, TypedDict
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any, Literal, TypedDict
 
 import requests
 
 from .clients import SPN2Client
+
+
+@dataclass(frozen=True, slots=True)
+class ArchiveResult:
+    url: str
+    status: Literal["success", "failed"]
+    archive_url: str | None
+    error_code: str | None
+    job_id: str | None
+
+
+ResultCallback = Callable[[ArchiveResult], None]
+_NOOP_CALLBACK: ResultCallback = lambda _result: None
 
 # A set of transient errors that suggest a retry might be successful.
 REQUEUE_ERRORS = {
@@ -97,7 +112,9 @@ def _submit_next_url(
     rate_limit_in_sec: float,
     submission_attempts: dict[str, int],
     api_params: dict[str, str | int],
+    *,
     max_retries: int = 3,
+    on_result: ResultCallback = _NOOP_CALLBACK,
 ) -> str | None:
     """
     Pops the next URL, submits it, and adds its job_id to pending_jobs.
@@ -109,6 +126,10 @@ def _submit_next_url(
 
     if attempt_num > max_retries:
         logging.error("URL %s failed submission %d times, giving up.", url, max_retries)
+        on_result(ArchiveResult(
+            url=url, status="failed", archive_url=None,
+            error_code="submit_failed", job_id=None,
+        ))
         return "failed"
 
     try:
@@ -147,7 +168,9 @@ def _poll_pending_jobs(
     transient_error_retries: dict[str, int],
     max_transient_retries: int,
     job_timeout_sec: float,
+    *,
     poll_interval_sec: float = 0.2,
+    on_result: ResultCallback = _NOOP_CALLBACK,
 ) -> tuple[list[str], list[str], list[str]]:
     """
     Checks the status of all pending jobs using a single batch request.
@@ -180,6 +203,10 @@ def _poll_pending_jobs(
             timestamp = status_data.get("timestamp")
             archive_url = f"https://web.archive.org/web/{timestamp}/{original_url}"
             logging.info("Success for job %s: %s", job_id, archive_url)
+            on_result(ArchiveResult(
+                url=original_url, status="success",
+                archive_url=archive_url, error_code=None, job_id=job_id,
+            ))
             del pending_jobs[job_id]
             successful_urls.append(original_url)
         elif status == "error":
@@ -200,6 +227,10 @@ def _poll_pending_jobs(
                         max_transient_retries,
                         status_ext,
                     )
+                    on_result(ArchiveResult(
+                        url=original_url, status="failed",
+                        archive_url=None, error_code=status_ext, job_id=job_id,
+                    ))
                     del pending_jobs[job_id]
                     failed_urls.append(original_url)
                 else:
@@ -226,6 +257,10 @@ def _poll_pending_jobs(
                     helpful_message,
                     api_message,
                 )
+                on_result(ArchiveResult(
+                    url=original_url, status="failed",
+                    archive_url=None, error_code=status_ext, job_id=job_id,
+                ))
                 del pending_jobs[job_id]
                 failed_urls.append(original_url)
         else:
@@ -237,6 +272,10 @@ def _poll_pending_jobs(
                     original_url,
                     job_timeout_sec,
                 )
+                on_result(ArchiveResult(
+                    url=original_url, status="failed",
+                    archive_url=None, error_code="timeout", job_id=job_id,
+                ))
                 del pending_jobs[job_id]
                 failed_urls.append(original_url)
             else:
@@ -253,6 +292,8 @@ def run_archive_workflow(
     urls_to_process: list[str],
     rate_limit_in_sec: float,
     api_params: dict[str, str | int],
+    *,
+    on_result: ResultCallback = _NOOP_CALLBACK,
 ) -> tuple[int, int]:
     """Manages the main loop for submitting and polling URLs."""
     pending_jobs: dict[str, PendingJob] = {}
@@ -279,6 +320,7 @@ def run_archive_workflow(
                 rate_limit_in_sec,
                 submission_attempts,
                 api_params,
+                on_result=on_result,
             )
             if status == "failed":
                 failure_count += 1
@@ -292,6 +334,7 @@ def run_archive_workflow(
                     transient_error_retries,
                     MAX_TRANSIENT_RETRIES,
                     JOB_TIMEOUT_SEC,
+                    on_result=on_result,
                 )
             except (requests.RequestException, ValueError) as e:
                 consecutive_poll_failures += 1
@@ -307,6 +350,12 @@ def run_archive_workflow(
                         MAX_CONSECUTIVE_POLL_FAILURES,
                         len(pending_jobs),
                     )
+                    for job_id, job in pending_jobs.items():
+                        on_result(ArchiveResult(
+                            url=job["url"], status="failed",
+                            archive_url=None, error_code="poll_failure",
+                            job_id=job_id,
+                        ))
                     failure_count += len(pending_jobs)
                     pending_jobs.clear()
                 else:
