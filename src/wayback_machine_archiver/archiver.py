@@ -15,7 +15,7 @@ from urllib3.util.retry import Retry
 from .cli import create_parser
 from .clients import SPN2Client
 from .sitemaps import process_sitemaps
-from .workflow import ArchiveResult, _NOOP_CALLBACK, run_archive_workflow
+from .workflow import _NOOP_CALLBACK, ArchiveResult, run_archive_workflow
 
 _DEFAULT_RETRY_COUNT = 5
 

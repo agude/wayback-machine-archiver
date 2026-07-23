@@ -11,7 +11,7 @@ import pytest
 
 from wayback_machine_archiver.archiver import _write_json_result, main
 from wayback_machine_archiver.clients import SPN2Client
-from wayback_machine_archiver.workflow import ArchiveResult, _NOOP_CALLBACK
+from wayback_machine_archiver.workflow import _NOOP_CALLBACK, ArchiveResult
 
 # Test constants
 DUMMY_CREDENTIALS = "dummy_key"
@@ -283,7 +283,9 @@ def test_archive_sitemap_also_behavior(
 @mock.patch(
     "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(1, 0)
 )
-def test_json_flag_passes_callback(mock_workflow, mock_sitemaps, cli_args, mock_credentials):
+def test_json_flag_passes_callback(
+    mock_workflow, mock_sitemaps, cli_args, mock_credentials
+):
     """Verify that --json passes _write_json_result as the on_result callback."""
     cli_args(["archiver", "--json", "http://test.com"])
     main()
@@ -297,7 +299,9 @@ def test_json_flag_passes_callback(mock_workflow, mock_sitemaps, cli_args, mock_
 @mock.patch(
     "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(1, 0)
 )
-def test_no_json_flag_uses_default(mock_workflow, mock_sitemaps, cli_args, mock_credentials):
+def test_no_json_flag_uses_default(
+    mock_workflow, mock_sitemaps, cli_args, mock_credentials
+):
     """Verify that without --json, on_result is the module-level no-op."""
     cli_args(["archiver", "http://test.com"])
     main()
@@ -309,7 +313,12 @@ def test_no_json_flag_uses_default(mock_workflow, mock_sitemaps, cli_args, mock_
 @mock.patch("wayback_machine_archiver.workflow.time.sleep")
 @mock.patch("wayback_machine_archiver.clients.time.sleep")
 def test_json_end_to_end(
-    _mock_client_sleep, _mock_workflow_sleep, cli_args, mock_credentials, requests_mock, capsys
+    _mock_client_sleep,
+    _mock_workflow_sleep,
+    cli_args,
+    mock_credentials,
+    requests_mock,
+    capsys,
 ):
     """
     End-to-end test: --json emits a valid JSONL line to stdout on success.
@@ -343,7 +352,10 @@ def test_json_end_to_end(
     record = json.loads(lines[0])
     assert record["url"] == url_to_archive
     assert record["status"] == "success"
-    assert record["archive_url"] == f"https://web.archive.org/web/{TEST_TIMESTAMP}/{url_to_archive}"
+    assert (
+        record["archive_url"]
+        == f"https://web.archive.org/web/{TEST_TIMESTAMP}/{url_to_archive}"
+    )
     assert record["error_code"] is None
     assert record["job_id"] == TEST_JOB_ID
     assert "recorded_at" in record
@@ -355,20 +367,25 @@ def test_json_end_to_end(
 def test_write_json_result_success(capsys):
     """Verify _write_json_result produces valid JSONL with correct keys for success."""
     before = datetime.now(timezone.utc)
-    _write_json_result(ArchiveResult(
-        url="http://example.com",
-        status="success",
-        archive_url="https://web.archive.org/web/20250101/http://example.com",
-        error_code=None,
-        job_id="job-abc",
-    ))
+    _write_json_result(
+        ArchiveResult(
+            url="http://example.com",
+            status="success",
+            archive_url="https://web.archive.org/web/20250101/http://example.com",
+            error_code=None,
+            job_id="job-abc",
+        )
+    )
 
     captured = capsys.readouterr()
     record = json.loads(captured.out.strip())
     assert record["url"] == "http://example.com"
     assert record["job_id"] == "job-abc"
     assert record["status"] == "success"
-    assert record["archive_url"] == "https://web.archive.org/web/20250101/http://example.com"
+    assert (
+        record["archive_url"]
+        == "https://web.archive.org/web/20250101/http://example.com"
+    )
     assert record["error_code"] is None
     recorded = datetime.fromisoformat(record["recorded_at"])
     assert before <= recorded <= datetime.now(timezone.utc)
@@ -377,13 +394,15 @@ def test_write_json_result_success(capsys):
 def test_write_json_result_failure(capsys):
     """Verify _write_json_result serializes null archive_url and error_code for failures."""
     before = datetime.now(timezone.utc)
-    _write_json_result(ArchiveResult(
-        url="http://gone.com",
-        status="failed",
-        archive_url=None,
-        error_code="error:not-found",
-        job_id="job-xyz",
-    ))
+    _write_json_result(
+        ArchiveResult(
+            url="http://gone.com",
+            status="failed",
+            archive_url=None,
+            error_code="error:not-found",
+            job_id="job-xyz",
+        )
+    )
 
     captured = capsys.readouterr()
     record = json.loads(captured.out.strip())
@@ -398,13 +417,15 @@ def test_write_json_result_failure(capsys):
 
 def test_write_json_result_timeout(capsys):
     """Verify _write_json_result handles timeout as a failure with error_code."""
-    _write_json_result(ArchiveResult(
-        url="http://slow.com",
-        status="failed",
-        archive_url=None,
-        error_code="timeout",
-        job_id="job-stuck",
-    ))
+    _write_json_result(
+        ArchiveResult(
+            url="http://slow.com",
+            status="failed",
+            archive_url=None,
+            error_code="timeout",
+            job_id="job-stuck",
+        )
+    )
 
     captured = capsys.readouterr()
     record = json.loads(captured.out.strip())
@@ -416,13 +437,15 @@ def test_write_json_result_timeout(capsys):
 
 def test_write_json_result_no_job_id(capsys):
     """Verify _write_json_result handles null job_id for submit failures."""
-    _write_json_result(ArchiveResult(
-        url="http://doomed.com",
-        status="failed",
-        archive_url=None,
-        error_code="submit_failed",
-        job_id=None,
-    ))
+    _write_json_result(
+        ArchiveResult(
+            url="http://doomed.com",
+            status="failed",
+            archive_url=None,
+            error_code="submit_failed",
+            job_id=None,
+        )
+    )
 
     captured = capsys.readouterr()
     record = json.loads(captured.out.strip())
@@ -436,7 +459,12 @@ def test_write_json_result_no_job_id(capsys):
 @mock.patch("wayback_machine_archiver.workflow.time.sleep")
 @mock.patch("wayback_machine_archiver.clients.time.sleep")
 def test_json_end_to_end_failure(
-    _mock_client_sleep, _mock_workflow_sleep, cli_args, mock_credentials, requests_mock, capsys
+    _mock_client_sleep,
+    _mock_workflow_sleep,
+    cli_args,
+    mock_credentials,
+    requests_mock,
+    capsys,
 ):
     """End-to-end: --json emits correct JSONL for a permanent failure."""
     url_to_archive = "http://blocked-test.com"
@@ -481,7 +509,12 @@ def test_json_end_to_end_failure(
 @mock.patch("wayback_machine_archiver.workflow.time.sleep")
 @mock.patch("wayback_machine_archiver.clients.time.sleep")
 def test_json_multi_url(
-    _mock_client_sleep, _mock_workflow_sleep, cli_args, mock_credentials, requests_mock, capsys
+    _mock_client_sleep,
+    _mock_workflow_sleep,
+    cli_args,
+    mock_credentials,
+    requests_mock,
+    capsys,
 ):
     """End-to-end: --json with multiple URLs produces one JSONL line per URL."""
     from urllib.parse import parse_qs
@@ -496,7 +529,11 @@ def test_json_multi_url(
     def status_handler(request, context):
         requested_ids = parse_qs(request.text).get("job_ids", [""])[0].split(",")
         return [
-            {"status": "success", "job_id": jid, "timestamp": f"2025010{jid.split('-')[1]}"}
+            {
+                "status": "success",
+                "job_id": jid,
+                "timestamp": f"2025010{jid.split('-')[1]}",
+            }
             for jid in requested_ids
         ]
 
@@ -535,7 +572,13 @@ def test_json_multi_url(
     side_effect=BrokenPipeError,
 )
 def test_broken_pipe_exits_cleanly(
-    mock_workflow, mock_sitemaps, mock_os_open, mock_dup2, mock_os_close, cli_args, mock_credentials
+    mock_workflow,
+    mock_sitemaps,
+    mock_os_open,
+    mock_dup2,
+    mock_os_close,
+    cli_args,
+    mock_credentials,
 ):
     """Verify that BrokenPipeError (e.g., piping to `head`) exits with code 1."""
     cli_args(["archiver", "--json", "http://test.com"])
@@ -551,7 +594,9 @@ def test_broken_pipe_exits_cleanly(
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-def test_json_with_no_urls_produces_no_output(mock_sitemaps, cli_args, mock_credentials, capsys):
+def test_json_with_no_urls_produces_no_output(
+    mock_sitemaps, cli_args, mock_credentials, capsys
+):
     """With --json but no valid URLs, nothing is written to stdout."""
     cli_args(["archiver", "--json"])
     main()
@@ -563,7 +608,12 @@ def test_json_with_no_urls_produces_no_output(mock_sitemaps, cli_args, mock_cred
 @mock.patch("wayback_machine_archiver.workflow.time.sleep")
 @mock.patch("wayback_machine_archiver.clients.time.sleep")
 def test_json_filtered_urls_not_in_output(
-    _mock_client_sleep, _mock_workflow_sleep, cli_args, mock_credentials, requests_mock, capsys
+    _mock_client_sleep,
+    _mock_workflow_sleep,
+    cli_args,
+    mock_credentials,
+    requests_mock,
+    capsys,
 ):
     """URLs filtered as invalid (e.g., ftp://) produce no JSONL record."""
     requests_mock.post(
@@ -592,7 +642,13 @@ def test_json_filtered_urls_not_in_output(
 @mock.patch("wayback_machine_archiver.workflow.time.sleep")
 @mock.patch("wayback_machine_archiver.clients.time.sleep")
 def test_json_with_log_to_file(
-    _mock_client_sleep, _mock_workflow_sleep, cli_args, mock_credentials, requests_mock, capsys, tmp_path
+    _mock_client_sleep,
+    _mock_workflow_sleep,
+    cli_args,
+    mock_credentials,
+    requests_mock,
+    capsys,
+    tmp_path,
 ):
     """With --json and --log-to-file, JSONL goes to stdout and logs go to the file."""
     url_to_archive = "http://log-file-test.com"
@@ -616,7 +672,17 @@ def test_json_with_log_to_file(
     original_handlers = root_logger.handlers[:]
     root_logger.handlers.clear()
 
-    cli_args(["archiver", "--json", "--log", "INFO", "--log-to-file", str(log_file), url_to_archive])
+    cli_args(
+        [
+            "archiver",
+            "--json",
+            "--log",
+            "INFO",
+            "--log-to-file",
+            str(log_file),
+            url_to_archive,
+        ]
+    )
     try:
         main()
     finally:

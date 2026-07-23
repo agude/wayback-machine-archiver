@@ -90,11 +90,11 @@ def test_submit_next_url_failure_requeues_and_tracks_attempt():
     )
 
 
-def test_submit_next_url_no_job_id_requeues_without_penalty():
+def test_submit_next_url_no_job_id_requeues_with_penalty():
     """
     Verify that when submit_capture returns None (no job_id), the URL
-    is re-queued without counting against submission attempts. A missing
-    job_id signals server-side load, not a problem with the URL.
+    is re-queued and the attempt counts against the retry limit so the
+    loop cannot spin forever.
     """
     mock_client = mock.Mock()
     mock_client.submit_capture.return_value = None
@@ -114,7 +114,7 @@ def test_submit_next_url_no_job_id_requeues_without_penalty():
 
     assert not pending_jobs
     assert urls_to_process == ["http://example.com"]
-    assert submission_attempts.get("http://example.com", 0) == 0
+    assert submission_attempts["http://example.com"] == 1
 
 
 def test_submit_next_url_gives_up_after_max_retries():
@@ -787,7 +787,15 @@ def test_callback_fires_on_permanent_error(mock_sleep):
         on_result=callback,
     )
 
-    assert results == [ArchiveResult(url="http://gone.com", status="failed", archive_url=None, error_code="error:not-found", job_id="job-1")]
+    assert results == [
+        ArchiveResult(
+            url="http://gone.com",
+            status="failed",
+            archive_url=None,
+            error_code="error:not-found",
+            job_id="job-1",
+        )
+    ]
 
 
 @mock.patch("wayback_machine_archiver.workflow.time.sleep")
@@ -815,7 +823,15 @@ def test_callback_fires_on_transient_exhaustion(mock_sleep):
         on_result=callback,
     )
 
-    assert results == [ArchiveResult(url="http://flaky.com", status="failed", archive_url=None, error_code="error:service-unavailable", job_id="job-1")]
+    assert results == [
+        ArchiveResult(
+            url="http://flaky.com",
+            status="failed",
+            archive_url=None,
+            error_code="error:service-unavailable",
+            job_id="job-1",
+        )
+    ]
 
 
 @mock.patch("wayback_machine_archiver.workflow.time.sleep")
@@ -867,7 +883,15 @@ def test_callback_fires_on_timeout(mock_sleep):
         on_result=callback,
     )
 
-    assert results == [ArchiveResult(url="http://stuck.com", status="failed", archive_url=None, error_code="timeout", job_id="job-stuck")]
+    assert results == [
+        ArchiveResult(
+            url="http://stuck.com",
+            status="failed",
+            archive_url=None,
+            error_code="timeout",
+            job_id="job-stuck",
+        )
+    ]
 
 
 def test_callback_fires_on_submit_failure():
@@ -886,7 +910,15 @@ def test_callback_fires_on_submit_failure():
         on_result=callback,
     )
 
-    assert results == [ArchiveResult(url="http://doomed.com", status="failed", archive_url=None, error_code="submit_failed", job_id=None)]
+    assert results == [
+        ArchiveResult(
+            url="http://doomed.com",
+            status="failed",
+            archive_url=None,
+            error_code="submit_failed",
+            job_id=None,
+        )
+    ]
 
 
 @mock.patch("wayback_machine_archiver.workflow.time.sleep")
@@ -914,7 +946,15 @@ def test_callback_fires_on_poll_failure_bailout(mock_submit, mock_poll, mock_sle
         on_result=callback,
     )
 
-    assert results == [ArchiveResult(url="http://a.com", status="failed", archive_url=None, error_code="poll_failure", job_id="job-http://a.com")]
+    assert results == [
+        ArchiveResult(
+            url="http://a.com",
+            status="failed",
+            archive_url=None,
+            error_code="poll_failure",
+            job_id="job-http://a.com",
+        )
+    ]
 
 
 # --- Requeue-then-success test ---
@@ -927,7 +967,14 @@ def test_callback_requeue_then_success_produces_one_record(mock_sleep):
     mock_client = mock.Mock()
     mock_client.submit_capture.side_effect = ["job-1", "job-2"]
     mock_client.check_status_batch.side_effect = [
-        [{"status": "error", "job_id": "job-1", "status_ext": "error:service-unavailable", "message": "Down"}],
+        [
+            {
+                "status": "error",
+                "job_id": "job-1",
+                "status_ext": "error:service-unavailable",
+                "message": "Down",
+            }
+        ],
         [{"status": "success", "job_id": "job-2", "timestamp": "20250101"}],
     ]
 

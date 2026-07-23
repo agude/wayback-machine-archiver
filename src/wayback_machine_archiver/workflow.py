@@ -19,7 +19,10 @@ class ArchiveResult:
 
 
 ResultCallback = Callable[[ArchiveResult], None]
-_NOOP_CALLBACK: ResultCallback = lambda _result: None
+
+
+def _NOOP_CALLBACK(_result: ArchiveResult) -> None: ...
+
 
 # A set of transient errors that suggest a retry might be successful.
 REQUEUE_ERRORS = {
@@ -126,10 +129,15 @@ def _submit_next_url(
 
     if attempt_num > max_retries:
         logging.error("URL %s failed submission %d times, giving up.", url, max_retries)
-        on_result(ArchiveResult(
-            url=url, status="failed", archive_url=None,
-            error_code="submit_failed", job_id=None,
-        ))
+        on_result(
+            ArchiveResult(
+                url=url,
+                status="failed",
+                archive_url=None,
+                error_code="submit_failed",
+                job_id=None,
+            )
+        )
         return "failed"
 
     try:
@@ -151,7 +159,6 @@ def _submit_next_url(
             "Submission for %s was accepted but no job_id was returned. This can happen under high load or due to rate limits. Re-queuing for another attempt.",
             url,
         )
-        submission_attempts[url] = attempt_num - 1
         urls_to_process.append(url)
         return None
 
@@ -203,10 +210,15 @@ def _poll_pending_jobs(
             timestamp = status_data.get("timestamp")
             archive_url = f"https://web.archive.org/web/{timestamp}/{original_url}"
             logging.info("Success for job %s: %s", job_id, archive_url)
-            on_result(ArchiveResult(
-                url=original_url, status="success",
-                archive_url=archive_url, error_code=None, job_id=job_id,
-            ))
+            on_result(
+                ArchiveResult(
+                    url=original_url,
+                    status="success",
+                    archive_url=archive_url,
+                    error_code=None,
+                    job_id=job_id,
+                )
+            )
             del pending_jobs[job_id]
             successful_urls.append(original_url)
         elif status == "error":
@@ -227,10 +239,15 @@ def _poll_pending_jobs(
                         max_transient_retries,
                         status_ext,
                     )
-                    on_result(ArchiveResult(
-                        url=original_url, status="failed",
-                        archive_url=None, error_code=status_ext, job_id=job_id,
-                    ))
+                    on_result(
+                        ArchiveResult(
+                            url=original_url,
+                            status="failed",
+                            archive_url=None,
+                            error_code=status_ext,
+                            job_id=job_id,
+                        )
+                    )
                     del pending_jobs[job_id]
                     failed_urls.append(original_url)
                 else:
@@ -257,10 +274,15 @@ def _poll_pending_jobs(
                     helpful_message,
                     api_message,
                 )
-                on_result(ArchiveResult(
-                    url=original_url, status="failed",
-                    archive_url=None, error_code=status_ext, job_id=job_id,
-                ))
+                on_result(
+                    ArchiveResult(
+                        url=original_url,
+                        status="failed",
+                        archive_url=None,
+                        error_code=status_ext,
+                        job_id=job_id,
+                    )
+                )
                 del pending_jobs[job_id]
                 failed_urls.append(original_url)
         else:
@@ -272,10 +294,15 @@ def _poll_pending_jobs(
                     original_url,
                     job_timeout_sec,
                 )
-                on_result(ArchiveResult(
-                    url=original_url, status="failed",
-                    archive_url=None, error_code="timeout", job_id=job_id,
-                ))
+                on_result(
+                    ArchiveResult(
+                        url=original_url,
+                        status="failed",
+                        archive_url=None,
+                        error_code="timeout",
+                        job_id=job_id,
+                    )
+                )
                 del pending_jobs[job_id]
                 failed_urls.append(original_url)
             else:
@@ -351,11 +378,15 @@ def run_archive_workflow(
                         len(pending_jobs),
                     )
                     for job_id, job in pending_jobs.items():
-                        on_result(ArchiveResult(
-                            url=job["url"], status="failed",
-                            archive_url=None, error_code="poll_failure",
-                            job_id=job_id,
-                        ))
+                        on_result(
+                            ArchiveResult(
+                                url=job["url"],
+                                status="failed",
+                                archive_url=None,
+                                error_code="poll_failure",
+                                job_id=job_id,
+                            )
+                        )
                     failure_count += len(pending_jobs)
                     pending_jobs.clear()
                 else:
