@@ -205,6 +205,13 @@ def test_api_option_flags_are_parsed_correctly():
     assert args.capture_cookie == "name=value"
     assert args.use_user_agent == "MyTestAgent/1.0"
 
+    # Test --json flag
+    args = parser.parse_args([])
+    assert args.json_output is False
+
+    args = parser.parse_args(["--json"])
+    assert args.json_output is True
+
 
 # --- Tests for URL validation ---
 

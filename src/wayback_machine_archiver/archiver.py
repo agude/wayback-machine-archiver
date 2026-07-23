@@ -1,8 +1,10 @@
 import argparse
+import json
 import logging
 import os
 import random
 import sys
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 import requests
@@ -13,7 +15,7 @@ from urllib3.util.retry import Retry
 from .cli import create_parser
 from .clients import SPN2Client
 from .sitemaps import process_sitemaps
-from .workflow import run_archive_workflow
+from .workflow import ArchiveResult, _NOOP_CALLBACK, run_archive_workflow
 
 _DEFAULT_RETRY_COUNT = 5
 
@@ -148,6 +150,19 @@ def _filter_valid_urls(urls: set[str]) -> set[str]:
     return urls - invalid_urls
 
 
+def _write_json_result(result: ArchiveResult) -> None:
+    record = {
+        "url": result.url,
+        "job_id": result.job_id,
+        "status": result.status,
+        "archive_url": result.archive_url,
+        "error_code": result.error_code,
+        "recorded_at": datetime.now(timezone.utc).isoformat(),
+    }
+    sys.stdout.write(json.dumps(record) + "\n")
+    sys.stdout.flush()
+
+
 def main() -> None:
     """Main entry point for the archiver script."""
     parser = create_parser()
@@ -186,9 +201,16 @@ def main() -> None:
     client = SPN2Client(
         session=client_session, access_key=access_key, secret_key=secret_key
     )
-    _, failure_count = run_archive_workflow(
-        client, urls_to_process, rate_limit, api_params
-    )
+    on_result = _write_json_result if args.json_output else _NOOP_CALLBACK
+    try:
+        _, failure_count = run_archive_workflow(
+            client, urls_to_process, rate_limit, api_params, on_result=on_result
+        )
+    except BrokenPipeError:
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+        os.close(devnull)
+        sys.exit(1)
 
     if failure_count > 0:
         sys.exit(1)

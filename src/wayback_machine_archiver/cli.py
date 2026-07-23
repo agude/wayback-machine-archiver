@@ -141,4 +141,15 @@ def create_parser() -> argparse.ArgumentParser:
         help="Uses a custom HTTP User-Agent value when capturing the target page.",
     )
 
+    output_group = parser.add_argument_group(
+        "Output Options", "Control the format and destination of results."
+    )
+    output_group.add_argument(
+        "--json",
+        action="store_true",
+        default=False,
+        dest="json_output",
+        help="Emits one JSONL line to stdout per URL result. Logs are written to stderr and can be suppressed with --log WARNING. Pipe to a file for persistence: archiver --json ... > results.jsonl",
+    )
+
     return parser
