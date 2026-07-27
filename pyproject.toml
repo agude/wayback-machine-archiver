@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=77.0"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "wayback-machine-archiver"
-version = "4.1.0"
+dynamic = ["version"]
 description = "A Python script to submit web pages to the Wayback Machine for archiving."
 readme = "README.md"
 authors = [
@@ -41,34 +41,74 @@ Homepage = "https://github.com/agude/wayback-machine-archiver"
 [project.scripts]
 archiver = "wayback_machine_archiver.archiver:main"
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-    "pytest",
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
     "requests-mock",
-    "bump-my-version",
     "types-defusedxml",
-    "ruff",
+    "ruff>=0.16",
+    "mypy>=1.15",
 ]
 
-[tool.bumpversion]
-current_version = "4.1.0"
-commit = true
-tag = true
-message = "Bump version to {new_version}"
+[tool.hatch.version]
+path = "src/wayback_machine_archiver/__init__.py"
 
-[[tool.bumpversion.files]]
-filename = "pyproject.toml"
-search = 'version = "{current_version}"'
-replace = 'version = "{new_version}"'
+[tool.hatch.build.targets.wheel]
+packages = ["src/wayback_machine_archiver"]
 
-[[tool.bumpversion.files]]
-filename = "src/wayback_machine_archiver/__init__.py"
-search = '__version__ = "{current_version}"'
-replace = '__version__ = "{new_version}"'
+[tool.hatch.build.targets.sdist]
+# Ship what is needed to build and test. Agent instructions are noise
+# for anyone installing from source.
+exclude = ["AGENTS.md", "CLAUDE.md", "GEMINI.md"]
 
 [tool.ruff]
 target-version = "py310"
+line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "G"]
-ignore = ["E501"]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "SIM",    # flake8-simplify
+    "RET",    # flake8-return
+    "RUF",    # Ruff-specific
+    "PTH",    # flake8-use-pathlib
+    "G",      # flake8-logging-format
+]
+ignore = [
+    "E501",   # line too long (handled by the formatter)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Real-world sitemap fixture; its curly apostrophes are the test data.
+"tests/test_extract_pages_from_sitemap.py" = ["RUF001"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+# Without these, tests/ has no __init__.py so mypy resolves the files as
+# top-level modules (test_cli, not tests.test_cli) and the override below
+# silently never matches.
+namespace_packages = true
+explicit_package_bases = true
+# explicit_package_bases needs the src root declared, or the package is
+# discovered twice (as src.pkg and pkg) and mypy refuses to run.
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+# Test bodies are the assertion; annotating every fixture and helper buys
+# nothing. disallow_untyped_calls follows, or typed tests calling untyped
+# helpers re-report the same noise.
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=wayback_machine_archiver --cov-fail-under=90"

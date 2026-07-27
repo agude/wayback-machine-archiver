@@ -1,4 +1,4 @@
-import os.path
+from pathlib import Path
 
 import pytest
 
@@ -22,7 +22,7 @@ def test_load_local_file_without_prefix(tmpdir):
     # Write a file using pytest's tmpdir so we can read it back
     file = tmpdir.join("sitemap.xml")
     file.write_binary(SITEMAP.encode("UTF-8"))
-    file_path = os.path.join(file.dirname, file.basename)
+    file_path = str(Path(file.dirname) / file.basename)
 
     # Read the file
     read_contents = load_local_sitemap(file_path)
@@ -33,7 +33,7 @@ def test_load_local_file_with_prefix(tmpdir):
     # Write a file using pytest's tmpdir so we can read it back
     file = tmpdir.join("sitemap.xml")
     file.write_binary(SITEMAP.encode("UTF-8"))
-    file_path = os.path.join(LOCAL_PREFIX, file.dirname, file.basename)
+    file_path = LOCAL_PREFIX + str(Path(file.dirname) / file.basename)
 
     # Read the file
     read_contents = load_local_sitemap(file_path)

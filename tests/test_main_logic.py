@@ -38,9 +38,7 @@ def mock_credentials(monkeypatch):
     """Mock environment credentials for Internet Archive API."""
     monkeypatch.setattr(
         "wayback_machine_archiver.archiver.os.getenv",
-        lambda key, default=None: (
-            DUMMY_CREDENTIALS if key in CREDENTIAL_ENV_VARS else default
-        ),
+        lambda key, default=None: DUMMY_CREDENTIALS if key in CREDENTIAL_ENV_VARS else default,
     )
 
 
@@ -48,16 +46,14 @@ def mock_credentials(monkeypatch):
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch(
-    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0)
-)
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0))
 @mock.patch("wayback_machine_archiver.archiver.random.shuffle")
 def test_random_order_flag_shuffles_urls(
     mock_shuffle, mock_workflow, mock_sitemaps, cli_args, mock_credentials
 ):
     """Verify that when --random-order is passed, random.shuffle is called."""
     urls_to_archive = ["http://test.com/a", "http://test.com/b"]
-    cli_args(["archiver", "--random-order"] + urls_to_archive)
+    cli_args(["archiver", "--random-order", *urls_to_archive])
     main()
     mock_shuffle.assert_called_once()
 
@@ -66,16 +62,14 @@ def test_random_order_flag_shuffles_urls(
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch(
-    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0)
-)
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0))
 @mock.patch("wayback_machine_archiver.archiver.random.shuffle")
 def test_default_order_does_not_shuffle(
     mock_shuffle, mock_workflow, mock_sitemaps, cli_args, mock_credentials
 ):
     """Verify that without --random-order, shuffle is not called."""
     urls_to_archive = ["http://test.com/a", "http://test.com/b"]
-    cli_args(["archiver"] + urls_to_archive)
+    cli_args(["archiver", *urls_to_archive])
     main()
     mock_shuffle.assert_not_called()
 
@@ -84,9 +78,7 @@ def test_default_order_does_not_shuffle(
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch(
-    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0)
-)
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0))
 def test_main_builds_and_passes_api_params(
     mock_workflow, mock_sitemaps, cli_args, mock_credentials
 ):
@@ -123,9 +115,7 @@ def test_main_builds_and_passes_api_params(
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch(
-    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 3)
-)
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 3))
 def test_main_exits_with_code_1_on_failures(
     mock_workflow, mock_sitemaps, cli_args, mock_credentials
 ):
@@ -137,12 +127,8 @@ def test_main_exits_with_code_1_on_failures(
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch(
-    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(5, 0)
-)
-def test_main_exits_cleanly_on_success(
-    mock_workflow, mock_sitemaps, cli_args, mock_credentials
-):
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow", return_value=(5, 0))
+def test_main_exits_cleanly_on_success(mock_workflow, mock_sitemaps, cli_args, mock_credentials):
     """Verify that main() exits normally (no SystemExit) when all captures succeed."""
     cli_args(["archiver", "http://test.com"])
     main()
@@ -195,10 +181,7 @@ def test_main_end_to_end_with_mocked_timing(
     assert submit_request.method == "POST"
     assert submit_request.url == SPN2Client.SAVE_URL
     assert "url=http" in submit_request.text
-    assert (
-        f"LOW {DUMMY_CREDENTIALS}:{DUMMY_CREDENTIALS}"
-        in submit_request.headers["Authorization"]
-    )
+    assert f"LOW {DUMMY_CREDENTIALS}:{DUMMY_CREDENTIALS}" in submit_request.headers["Authorization"]
 
     # Second call should be the status check
     status_request = history[1]
@@ -249,9 +232,7 @@ def test_main_end_to_end_with_mocked_timing(
     "wayback_machine_archiver.archiver.process_sitemaps",
     return_value={EXTRACTED_PAGE_URL},
 )
-@mock.patch(
-    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0)
-)
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0))
 def test_archive_sitemap_also_behavior(
     mock_workflow,
     mock_process_sitemaps,
@@ -265,7 +246,7 @@ def test_archive_sitemap_also_behavior(
     Verify that --archive-sitemap-also correctly includes remote sitemap URLs
     in the archive list while excluding local file paths.
     """
-    args = ["archiver", "--sitemaps"] + sitemaps
+    args = ["archiver", "--sitemaps", *sitemaps]
     if use_flag:
         args.append("--archive-sitemap-also")
 
@@ -280,12 +261,8 @@ def test_archive_sitemap_also_behavior(
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch(
-    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(1, 0)
-)
-def test_json_flag_passes_callback(
-    mock_workflow, mock_sitemaps, cli_args, mock_credentials
-):
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow", return_value=(1, 0))
+def test_json_flag_passes_callback(mock_workflow, mock_sitemaps, cli_args, mock_credentials):
     """Verify that --json passes _write_json_result as the on_result callback."""
     cli_args(["archiver", "--json", "http://test.com"])
     main()
@@ -296,12 +273,8 @@ def test_json_flag_passes_callback(
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch(
-    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(1, 0)
-)
-def test_no_json_flag_uses_default(
-    mock_workflow, mock_sitemaps, cli_args, mock_credentials
-):
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow", return_value=(1, 0))
+def test_no_json_flag_uses_default(mock_workflow, mock_sitemaps, cli_args, mock_credentials):
     """Verify that without --json, on_result is the module-level no-op."""
     cli_args(["archiver", "http://test.com"])
     main()
@@ -352,10 +325,7 @@ def test_json_end_to_end(
     record = json.loads(lines[0])
     assert record["url"] == url_to_archive
     assert record["status"] == "success"
-    assert (
-        record["archive_url"]
-        == f"https://web.archive.org/web/{TEST_TIMESTAMP}/{url_to_archive}"
-    )
+    assert record["archive_url"] == f"https://web.archive.org/web/{TEST_TIMESTAMP}/{url_to_archive}"
     assert record["error_code"] is None
     assert record["job_id"] == TEST_JOB_ID
     assert "recorded_at" in record
@@ -382,10 +352,7 @@ def test_write_json_result_success(capsys):
     assert record["url"] == "http://example.com"
     assert record["job_id"] == "job-abc"
     assert record["status"] == "success"
-    assert (
-        record["archive_url"]
-        == "https://web.archive.org/web/20250101/http://example.com"
-    )
+    assert record["archive_url"] == "https://web.archive.org/web/20250101/http://example.com"
     assert record["error_code"] is None
     recorded = datetime.fromisoformat(record["recorded_at"])
     assert before <= recorded <= datetime.now(timezone.utc)
@@ -540,7 +507,7 @@ def test_json_multi_url(
     requests_mock.post(SPN2Client.SAVE_URL, json=submit_handler, status_code=200)
     requests_mock.post(SPN2Client.STATUS_URL, json=status_handler, status_code=200)
 
-    cli_args(["archiver", "--json"] + urls)
+    cli_args(["archiver", "--json", *urls])
     main()
 
     captured = capsys.readouterr()
@@ -594,9 +561,7 @@ def test_broken_pipe_exits_cleanly(
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-def test_json_with_no_urls_produces_no_output(
-    mock_sitemaps, cli_args, mock_credentials, capsys
-):
+def test_json_with_no_urls_produces_no_output(mock_sitemaps, cli_args, mock_credentials, capsys):
     """With --json but no valid URLs, nothing is written to stdout."""
     cli_args(["archiver", "--json"])
     main()
@@ -623,9 +588,7 @@ def test_json_filtered_urls_not_in_output(
     )
     requests_mock.post(
         SPN2Client.STATUS_URL,
-        json=[
-            {"status": "success", "job_id": TEST_JOB_ID, "timestamp": TEST_TIMESTAMP}
-        ],
+        json=[{"status": "success", "job_id": TEST_JOB_ID, "timestamp": TEST_TIMESTAMP}],
         status_code=200,
     )
 
@@ -661,9 +624,7 @@ def test_json_with_log_to_file(
     )
     requests_mock.post(
         SPN2Client.STATUS_URL,
-        json=[
-            {"status": "success", "job_id": TEST_JOB_ID, "timestamp": TEST_TIMESTAMP}
-        ],
+        json=[{"status": "success", "job_id": TEST_JOB_ID, "timestamp": TEST_TIMESTAMP}],
         status_code=200,
     )
 

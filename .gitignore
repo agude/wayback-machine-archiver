@@ -2,8 +2,6 @@
 .env
 env
 
-# uv lockfile (not used in CI)
-uv.lock
 
 # Sometimes I use a test sitemap.xml
 sitemap.xml

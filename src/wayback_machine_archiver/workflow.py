@@ -163,8 +163,7 @@ def _submit_next_url(
         return None
 
     pending_jobs[job_id] = {"url": url, "submitted_at": time.time()}
-    if url in submission_attempts:
-        del submission_attempts[url]
+    submission_attempts.pop(url, None)
 
     return None
 
@@ -402,9 +401,7 @@ def run_archive_workflow(
             failure_count += len(failed)
             if requeued:
                 urls_to_process.extend(requeued)
-                logging.info(
-                    "Re-queued %d URLs due to transient API errors.", len(requeued)
-                )
+                logging.info("Re-queued %d URLs due to transient API errors.", len(requeued))
 
         if not urls_to_process and pending_jobs:
             logging.info(

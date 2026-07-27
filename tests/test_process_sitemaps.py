@@ -134,10 +134,7 @@ def test_process_sitemaps_respects_depth_limit(requests_mock, session, caplog):
     """Verify that sitemap index recursion stops at the depth limit."""
     from wayback_machine_archiver.sitemaps import MAX_SITEMAP_INDEX_DEPTH
 
-    urls = [
-        f"https://example.com/sitemap_level{i}.xml"
-        for i in range(MAX_SITEMAP_INDEX_DEPTH + 2)
-    ]
+    urls = [f"https://example.com/sitemap_level{i}.xml" for i in range(MAX_SITEMAP_INDEX_DEPTH + 2)]
 
     for i in range(MAX_SITEMAP_INDEX_DEPTH + 1):
         child = urls[i + 1]

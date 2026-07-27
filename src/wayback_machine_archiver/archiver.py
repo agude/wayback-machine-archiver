@@ -5,6 +5,7 @@ import os
 import random
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
@@ -130,7 +131,7 @@ def _gather_urls(args: argparse.Namespace) -> set[str]:
             urls.update(remote_sitemaps)
 
     if args.file:
-        with open(args.file) as f:
+        with Path(args.file).open() as f:
             urls_from_file = {line.strip() for line in f if line.strip()}
             logging.info("Found %d URLs from file: %s", len(urls_from_file), args.file)
             urls.update(urls_from_file)
@@ -198,9 +199,7 @@ def main() -> None:
 
     logging.info("SPN2 credentials found. Using authenticated API workflow.")
     client_session = _create_session_with_retries()
-    client = SPN2Client(
-        session=client_session, access_key=access_key, secret_key=secret_key
-    )
+    client = SPN2Client(session=client_session, access_key=access_key, secret_key=secret_key)
     on_result = _write_json_result if args.json_output else _NOOP_CALLBACK
     try:
         _, failure_count = run_archive_workflow(

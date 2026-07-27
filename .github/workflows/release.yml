@@ -1,3 +1,7 @@
+# Publishes to PyPI when a GitHub release is published.
+#
+# CI runs first and gates the publish: a PyPI upload cannot be undone, so
+# nothing ships that the matrix has not proven.
 name: Build and Release Package 📦
 
 on:
@@ -13,22 +17,31 @@ jobs:
     needs: [ci]
     name: Build and Publish to PyPI 📦
     permissions:
+      # Trusted publishing: no API token stored in the repo.
       id-token: write
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v7
+      - name: Checkout repository
+        uses: actions/checkout@v7
 
-    - name: Set up Python for build 🐍
-      uses: actions/setup-python@v6
-      with:
-        python-version: '3.14'
+      - name: Set up uv 💨
+        uses: astral-sh/setup-uv@v8
 
-    - name: Install the modern build tool 🏗
-      run: python -m pip install build
+      - name: Set up just 🤖
+        uses: extractions/setup-just@v2
 
-    - name: Build package 👷
-      run: python -m build
+      # The tag is what humans read; __init__.py is what pip installs. A
+      # mismatch ships a version nobody can reproduce from the tag.
+      - name: Verify tag matches package version 🏷
+        run: |
+          pkg_version=$(uv run python -c "from wayback_machine_archiver import __version__; print(__version__)")
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "$pkg_version" != "$tag_version" ]; then
+            echo "ERROR: tag ($tag_version) does not match __version__ ($pkg_version)"
+            exit 1
+          fi
 
-    - name: Publish distribution 📦 to PyPI
-      if: startsWith(github.ref, 'refs/tags')
-      uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Build package 👷
+        run: just build
+
+      - name: Publish distribution 📦 to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,6 +1,7 @@
 import logging
 import re
 from collections import deque
+from pathlib import Path
 from xml.etree.ElementTree import Element, ParseError
 
 import defusedxml.ElementTree as ET
@@ -33,8 +34,7 @@ def load_local_sitemap(sitemap_filepath: str) -> bytes:
     logging.debug("Loading local sitemap: %s", sitemap_filepath)
     if sitemap_filepath.startswith(LOCAL_PREFIX):
         sitemap_filepath = sitemap_filepath[len(LOCAL_PREFIX) :]
-    with open(sitemap_filepath, "rb") as fp:
-        return fp.read()
+    return Path(sitemap_filepath).read_bytes()
 
 
 def sitemap_is_local(sitemap_url: str) -> bool:

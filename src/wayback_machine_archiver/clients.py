@@ -53,9 +53,7 @@ class SPN2Client:
 
         if job_id:
             status_check_url = self.STATUS_URL_TEMPLATE.format(job_id=job_id)
-            logging.debug(
-                "Manual status check URL for %s: %s", url_to_archive, status_check_url
-            )
+            logging.debug("Manual status check URL for %s: %s", url_to_archive, status_check_url)
 
         return job_id
 

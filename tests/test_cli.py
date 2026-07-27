@@ -31,9 +31,7 @@ def mock_credentials(monkeypatch):
     """Mock environment credentials for Internet Archive API."""
     monkeypatch.setattr(
         "wayback_machine_archiver.archiver.os.getenv",
-        lambda key, default=None: (
-            DUMMY_CREDENTIALS if key in CREDENTIAL_ENV_VARS else default
-        ),
+        lambda key, default=None: DUMMY_CREDENTIALS if key in CREDENTIAL_ENV_VARS else default,
     )
 
 
@@ -54,9 +52,7 @@ def mock_no_credentials(monkeypatch):
     [("info", "INFO"), ("DEBUG", "DEBUG")],
 )
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch(
-    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0)
-)
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0))
 @mock.patch("wayback_machine_archiver.archiver.logging.basicConfig")
 def test_log_level(
     mock_basic_config,
@@ -79,13 +75,9 @@ def test_log_level(
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch(
-    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0)
-)
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0))
 @mock.patch("wayback_machine_archiver.archiver.logging.basicConfig")
-def test_log_to_file(
-    mock_basic_config, mock_workflow, mock_sitemaps, cli_args, mock_credentials
-):
+def test_log_to_file(mock_basic_config, mock_workflow, mock_sitemaps, cli_args, mock_credentials):
     """Verify that --log-to-file passes the filename to the logging config."""
     log_file = "archive.log"
     cli_args(["archiver", "http://test.com", "--log-to-file", log_file])
@@ -106,9 +98,7 @@ def test_log_to_file(
     [(2, 9), (10, 10)],
 )
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch(
-    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0)
-)
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0))
 def test_rate_limit_override(
     mock_workflow, mock_sitemaps, user_input, expected_wait, cli_args, mock_credentials
 ):
@@ -131,9 +121,7 @@ def test_version_action_exits(cli_args):
 
 
 @mock.patch("wayback_machine_archiver.archiver.logging.error")
-def test_main_exits_if_no_credentials(
-    mock_logging_error, cli_args, mock_no_credentials
-):
+def test_main_exits_if_no_credentials(mock_logging_error, cli_args, mock_no_credentials):
     """Verify the script raises SystemExit if credentials are missing."""
     cli_args(["archiver", "http://test.com"])
     with pytest.raises(SystemExit) as e:
@@ -249,9 +237,7 @@ def test_is_valid_url(url, expected):
 
 
 @mock.patch("wayback_machine_archiver.archiver.process_sitemaps", return_value=set())
-@mock.patch(
-    "wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0)
-)
+@mock.patch("wayback_machine_archiver.archiver.run_archive_workflow", return_value=(0, 0))
 def test_invalid_urls_are_filtered_with_warning(
     mock_workflow, mock_sitemaps, cli_args, mock_credentials, caplog
 ):

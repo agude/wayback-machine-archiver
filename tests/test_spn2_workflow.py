@@ -62,9 +62,7 @@ def test_submit_next_url_failure_requeues_and_tracks_attempt():
     and increments its attempt count.
     """
     mock_client = mock.Mock()
-    mock_client.submit_capture.side_effect = requests.exceptions.ConnectionError(
-        "API Error"
-    )
+    mock_client.submit_capture.side_effect = requests.exceptions.ConnectionError("API Error")
 
     urls_to_process = ["http://a.com", "http://b.com"]
     pending_jobs = {}
@@ -85,9 +83,7 @@ def test_submit_next_url_failure_requeues_and_tracks_attempt():
         "http://b.com",
         "http://a.com",
     ], "Failed URL should be at the end of the list"
-    assert submission_attempts == {"http://a.com": 1}, (
-        "Attempt count should be incremented"
-    )
+    assert submission_attempts == {"http://a.com": 1}, "Attempt count should be incremented"
 
 
 def test_submit_next_url_no_job_id_requeues_with_penalty():
@@ -143,9 +139,7 @@ def test_submit_next_url_gives_up_after_max_retries():
     mock_client.submit_capture.assert_not_called()
     assert not pending_jobs
     assert not urls_to_process, "URL should be consumed but not re-queued"
-    assert submission_attempts == {"http://will-fail.com": 4}, (
-        "Attempt count is still updated"
-    )
+    assert submission_attempts == {"http://will-fail.com": 4}, "Attempt count is still updated"
 
 
 def test_submit_next_url_passes_api_params_to_client():
@@ -346,18 +340,16 @@ def test_run_archive_workflow_dynamic_polling_is_fast_and_correct(
         poll_calls += 1
         if poll_calls <= 3:  # Simulate pending for 3 calls
             return [], [], []  # No success, no failure, no requeue
-        else:  # Simulate success on the 4th call
-            # --- Extract URLs from the new data structure ---
-            successful_urls = [job["url"] for job in pending_jobs_dict.values()]
-            pending_jobs_dict.clear()
-            return successful_urls, [], []
+        # Simulate success on the 4th call
+        # --- Extract URLs from the new data structure ---
+        successful_urls = [job["url"] for job in pending_jobs_dict.values()]
+        pending_jobs_dict.clear()
+        return successful_urls, [], []
 
     mock_poll.side_effect = poll_side_effect
 
     # Call the main workflow function
-    run_archive_workflow(
-        mock_client, urls_to_process_list, rate_limit_in_sec, api_params
-    )
+    run_archive_workflow(mock_client, urls_to_process_list, rate_limit_in_sec, api_params)
 
     # Assertions
     # Check the calls to time.sleep
@@ -422,9 +414,7 @@ def test_poll_fails_job_after_timeout(caplog):
     timeout period is marked as a failure.
     """
     mock_client = mock.Mock()
-    mock_client.check_status_batch.return_value = [
-        {"status": "pending", "job_id": "job-stuck"}
-    ]
+    mock_client.check_status_batch.return_value = [{"status": "pending", "job_id": "job-stuck"}]
 
     url = "http://stuck.com"
     timeout_sec = 3600  # 1 hour
@@ -591,9 +581,7 @@ def test_poll_exception_propagates_to_caller(mock_sleep):
     instead of catching it and clearing all jobs.
     """
     mock_client = mock.Mock()
-    mock_client.check_status_batch.side_effect = requests.exceptions.ConnectionError(
-        "network down"
-    )
+    mock_client.check_status_batch.side_effect = requests.exceptions.ConnectionError("network down")
 
     now = time.time()
     pending_jobs = {
@@ -616,9 +604,7 @@ def test_poll_exception_propagates_to_caller(mock_sleep):
 @mock.patch("wayback_machine_archiver.workflow.time.sleep")
 @mock.patch("wayback_machine_archiver.workflow._poll_pending_jobs")
 @mock.patch("wayback_machine_archiver.workflow._submit_next_url")
-def test_workflow_survives_transient_poll_failures(
-    mock_submit, mock_poll, mock_sleep, caplog
-):
+def test_workflow_survives_transient_poll_failures(mock_submit, mock_poll, mock_sleep, caplog):
     """
     Verify that a single poll failure does not fail all pending jobs,
     and that recovery on the next poll resets the failure counter.
@@ -628,7 +614,7 @@ def test_workflow_survives_transient_poll_failures(
     def submit_side_effect(urls_proc, client_arg, pending_jobs_dict, *args, **kwargs):
         url = urls_proc.pop(0)
         pending_jobs_dict[f"job-{url}"] = {"url": url, "submitted_at": time.time()}
-        return None
+        return
 
     mock_submit.side_effect = submit_side_effect
 
@@ -668,7 +654,7 @@ def test_workflow_fails_all_after_max_consecutive_poll_failures(
     def submit_side_effect(urls_proc, client_arg, pending_jobs_dict, *args, **kwargs):
         url = urls_proc.pop(0)
         pending_jobs_dict[f"job-{url}"] = {"url": url, "submitted_at": time.time()}
-        return None
+        return
 
     mock_submit.side_effect = submit_side_effect
 
@@ -677,10 +663,7 @@ def test_workflow_fails_all_after_max_consecutive_poll_failures(
     with caplog.at_level(logging.ERROR):
         run_archive_workflow(mock_client, ["http://a.com"], 0, {})
 
-    assert (
-        f"Polling failed {MAX_CONSECUTIVE_POLL_FAILURES} consecutive times"
-        in caplog.text
-    )
+    assert f"Polling failed {MAX_CONSECUTIVE_POLL_FAILURES} consecutive times" in caplog.text
 
 
 # --- Tests for concurrency cap ---
@@ -703,7 +686,7 @@ def test_workflow_caps_in_flight_jobs(mock_submit, mock_poll, mock_sleep):
     def submit_side_effect(urls_proc, client_arg, pending_jobs_dict, *args, **kwargs):
         url = urls_proc.pop(0)
         pending_jobs_dict[f"job-{url}"] = {"url": url, "submitted_at": time.time()}
-        return None
+        return
 
     mock_submit.side_effect = submit_side_effect
 
@@ -931,7 +914,7 @@ def test_callback_fires_on_poll_failure_bailout(mock_submit, mock_poll, mock_sle
     def submit_side_effect(urls_proc, client_arg, pending_jobs_dict, *args, **kwargs):
         url = urls_proc.pop(0)
         pending_jobs_dict[f"job-{url}"] = {"url": url, "submitted_at": time.time()}
-        return None
+        return
 
     mock_submit.side_effect = submit_side_effect
     mock_poll.side_effect = requests.exceptions.ConnectionError("persistent failure")
