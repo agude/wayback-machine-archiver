@@ -60,7 +60,7 @@ packages = ["src/wayback_machine_archiver"]
 [tool.hatch.build.targets.sdist]
 # Ship what is needed to build and test. Agent instructions are noise
 # for anyone installing from source.
-exclude = ["AGENTS.md", "CLAUDE.md", "GEMINI.md"]
+exclude = ["AGENTS.md", "GEMINI.md"]
 
 [tool.ruff]
 target-version = "py310"

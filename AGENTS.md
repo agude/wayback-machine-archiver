@@ -1,6 +1,6 @@
 # AGENTS.md
 
-`CLAUDE.md` and `GEMINI.md` are symlinks to this file.
+`GEMINI.md` is a symlink to this file.
 
 ## Project Overview
 
