@@ -27,7 +27,7 @@ jobs:
         uses: astral-sh/setup-uv@v9.0.0
 
       - name: Set up just 🤖
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v4
 
       # The tag is what humans read; __init__.py is what pip installs. A
       # mismatch ships a version nobody can reproduce from the tag.

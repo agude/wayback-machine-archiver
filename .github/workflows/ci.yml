@@ -19,7 +19,7 @@ jobs:
         uses: astral-sh/setup-uv@v9.0.0
 
       - name: Set up just 🤖
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v4
 
       - name: Install dependencies 🏗
         run: just sync
@@ -55,7 +55,7 @@ jobs:
         uses: astral-sh/setup-uv@v9.0.0
 
       - name: Set up just 🤖
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v4
 
       - name: Set up Python ${{ matrix.python-version }} 🐍
         run: uv python install ${{ matrix.python-version }}
