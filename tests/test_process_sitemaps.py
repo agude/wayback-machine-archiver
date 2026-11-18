@@ -150,3 +150,14 @@ def test_process_sitemaps_respects_depth_limit(requests_mock, session, caplog):
 
     assert result == set()
     assert "depth limit" in caplog.text
+
+
+def test_process_sitemaps_fetches_cyclic_index_once(requests_mock, session):
+    url = "https://example.com/sitemap.xml"
+    requests_mock.get(
+        url,
+        text=f"<sitemapindex><sitemap><loc>{url}</loc></sitemap></sitemapindex>",
+    )
+
+    assert process_sitemaps([url], session) == set()
+    assert requests_mock.call_count == 1
