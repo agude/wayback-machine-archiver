@@ -341,7 +341,7 @@ def test_write_json_result_success(capsys):
         ArchiveResult(
             url="http://example.com",
             status="success",
-            archive_url="https://web.archive.org/web/20250101/http://example.com",
+            archive_url="https://web.archive.org/web/20250101000000/http://example.com",
             error_code=None,
             job_id="job-abc",
         )
@@ -352,7 +352,7 @@ def test_write_json_result_success(capsys):
     assert record["url"] == "http://example.com"
     assert record["job_id"] == "job-abc"
     assert record["status"] == "success"
-    assert record["archive_url"] == "https://web.archive.org/web/20250101/http://example.com"
+    assert record["archive_url"] == "https://web.archive.org/web/20250101000000/http://example.com"
     assert record["error_code"] is None
     recorded = datetime.fromisoformat(record["recorded_at"])
     assert before <= recorded <= datetime.now(timezone.utc)
@@ -499,7 +499,7 @@ def test_json_multi_url(
             {
                 "status": "success",
                 "job_id": jid,
-                "timestamp": f"2025010{jid.split('-')[1]}",
+                "timestamp": f"2025010{jid.split('-')[1]}000000",
             }
             for jid in requested_ids
         ]

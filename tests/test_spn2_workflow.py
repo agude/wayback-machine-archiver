@@ -180,7 +180,7 @@ def test_poll_uses_batch_and_removes_completed_jobs(mock_sleep):
     mock_client = mock.Mock()
     # Define the return value for the single batch request
     mock_client.check_status_batch.return_value = [
-        {"status": "success", "job_id": "job-success", "timestamp": "20250101"},
+        {"status": "success", "job_id": "job-success", "timestamp": "20250101000000"},
         {"status": "error", "job_id": "job-error", "message": "Too many redirects."},
         {"status": "pending", "job_id": "job-pending"},
     ]
@@ -452,9 +452,9 @@ def test_poll_skips_unknown_job_ids_from_batch_response(mock_sleep, caplog):
         {
             "status": "success",
             "job_id": "unknown-job-not-in-pending",
-            "timestamp": "20250115",
+            "timestamp": "20250115000000",
         },
-        {"status": "success", "job_id": "known-job-1", "timestamp": "20250115"},
+        {"status": "success", "job_id": "known-job-1", "timestamp": "20250115000000"},
         {"status": "pending", "job_id": "known-job-2"},
     ]
 
@@ -499,8 +499,8 @@ def test_poll_handles_missing_job_id_field_in_response(mock_sleep, caplog):
 
     # API returns one object with no job_id field
     mock_client.check_status_batch.return_value = [
-        {"status": "success", "timestamp": "20250115"},  # Missing job_id
-        {"status": "success", "job_id": "valid-job", "timestamp": "20250115"},
+        {"status": "success", "timestamp": "20250115000000"},  # Missing job_id
+        {"status": "success", "job_id": "valid-job", "timestamp": "20250115000000"},
     ]
 
     now = time.time()
@@ -538,7 +538,7 @@ def test_poll_handles_all_unknown_job_ids(mock_sleep, caplog):
 
     # API returns only unknown job_ids
     mock_client.check_status_batch.return_value = [
-        {"status": "success", "job_id": "unknown-1", "timestamp": "20250115"},
+        {"status": "success", "job_id": "unknown-1", "timestamp": "20250115000000"},
         {"status": "error", "job_id": "unknown-2", "message": "Not found"},
     ]
 
@@ -718,7 +718,7 @@ def test_callback_fires_on_success(mock_sleep):
     """Verify on_result is called with status 'success' and the archive URL."""
     mock_client = mock.Mock()
     mock_client.check_status_batch.return_value = [
-        {"status": "success", "job_id": "job-1", "timestamp": "20250101"},
+        {"status": "success", "job_id": "job-1", "timestamp": "20250101000000"},
     ]
 
     now = time.time()
@@ -738,7 +738,7 @@ def test_callback_fires_on_success(mock_sleep):
         ArchiveResult(
             url="http://a.com",
             status="success",
-            archive_url="https://web.archive.org/web/20250101/http://a.com",
+            archive_url="https://web.archive.org/web/20250101000000/http://a.com",
             error_code=None,
             job_id="job-1",
         )
@@ -958,7 +958,7 @@ def test_callback_requeue_then_success_produces_one_record(mock_sleep):
                 "message": "Down",
             }
         ],
-        [{"status": "success", "job_id": "job-2", "timestamp": "20250101"}],
+        [{"status": "success", "job_id": "job-2", "timestamp": "20250101000000"}],
     ]
 
     results, callback = _collect_result()
@@ -975,7 +975,7 @@ def test_callback_requeue_then_success_produces_one_record(mock_sleep):
     assert results[0] == ArchiveResult(
         url="http://retry-me.com",
         status="success",
-        archive_url="https://web.archive.org/web/20250101/http://retry-me.com",
+        archive_url="https://web.archive.org/web/20250101000000/http://retry-me.com",
         error_code=None,
         job_id="job-2",
     )
@@ -1154,3 +1154,28 @@ def test_daily_bandwidth_limits_fail_with_a_specific_message(mock_sleep, caplog,
 
     assert outcome == ([], ["http://a.com"], [])
     assert PERMANENT_ERROR_MESSAGES[status_ext] in caplog.text
+
+
+@pytest.mark.parametrize(
+    "timestamp_field",
+    [{}, {"timestamp": None}, {"timestamp": "20250101"}, {"timestamp": 20250101000000}],
+)
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_success_without_usable_timestamp_links_to_newest_capture(mock_sleep, timestamp_field):
+    """SPN2 reported success, so the URL is archived; only the capture time is unknown."""
+    client = mock.Mock()
+    client.check_status_batch.return_value = [
+        {"job_id": "job", "status": "success", **timestamp_field}
+    ]
+    url = "https://example.com/page"
+    pending_jobs = {"job": {"url": url, "submitted_at": time.time()}}
+    results = []
+
+    outcome = _poll_pending_jobs(client, pending_jobs, {}, 3, 30, on_result=results.append)
+
+    assert outcome == ([url], [], [])
+    assert results == [
+        ArchiveResult(
+            url, "success", "https://web.archive.org/web/https://example.com/page", None, "job"
+        )
+    ]

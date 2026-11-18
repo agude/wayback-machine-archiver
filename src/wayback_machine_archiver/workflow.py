@@ -104,6 +104,11 @@ MAX_CONSECUTIVE_POLL_FAILURES = 5
 MAX_PENDING_JOBS = 10
 
 
+def _is_capture_timestamp(value: object) -> bool:
+    """True for a Wayback capture timestamp: 14 digits, YYYYMMDDhhmmss."""
+    return isinstance(value, str) and len(value) == 14 and value.isascii() and value.isdigit()
+
+
 class PendingJob(TypedDict):
     """Type for pending job entries."""
 
@@ -216,7 +221,17 @@ def _poll_pending_jobs(
 
         if status == "success":
             timestamp = status_data.get("timestamp")
-            archive_url = f"https://web.archive.org/web/{timestamp}/{original_url}"
+            if _is_capture_timestamp(timestamp):
+                archive_url = f"https://web.archive.org/web/{timestamp}/{original_url}"
+            else:
+                # The capture exists, but SPN2 did not say when. A timestamp-free
+                # Wayback URL resolves to the newest capture of the page.
+                logging.warning(
+                    "Success for job %s has no usable capture timestamp (%r). Linking to the newest capture.",
+                    job_id,
+                    timestamp,
+                )
+                archive_url = f"https://web.archive.org/web/{original_url}"
             logging.info("Success for job %s: %s", job_id, archive_url)
             on_result(
                 ArchiveResult(
