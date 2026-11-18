@@ -9,9 +9,20 @@ from unittest import mock
 
 import pytest
 
+from wayback_machine_archiver import workflow
 from wayback_machine_archiver.archiver import _write_json_result, main
 from wayback_machine_archiver.clients import SPN2Client
 from wayback_machine_archiver.workflow import _NOOP_CALLBACK, ArchiveResult
+
+
+@pytest.fixture(autouse=True)
+def _no_stale_status_checks(monkeypatch):
+    """These tests use fixed 2025 capture timestamps and poll in the same
+    instant they submit. Disable the stale-status rules here; the
+    test_stale_* tests cover them with realistic times."""
+    monkeypatch.setattr(workflow, "STALE_STATUS_WINDOW_SEC", 0)
+    monkeypatch.setattr(workflow, "CLOCK_SKEW_TOLERANCE_SEC", float("inf"))
+
 
 # Test constants
 DUMMY_CREDENTIALS = "dummy_key"
@@ -499,7 +510,7 @@ def test_json_multi_url(
             {
                 "status": "success",
                 "job_id": jid,
-                "timestamp": f"2025010{jid.split('-')[1]}000000",
+                "timestamp": f"2025010{int(jid.split('-')[1]) + 1}000000",
             }
             for jid in requested_ids
         ]

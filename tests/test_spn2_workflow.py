@@ -6,6 +6,7 @@ from unittest import mock
 import pytest
 import requests
 
+from wayback_machine_archiver import workflow
 from wayback_machine_archiver.workflow import (
     MAX_CONSECUTIVE_POLL_FAILURES,
     MAX_PENDING_JOBS,
@@ -16,6 +17,16 @@ from wayback_machine_archiver.workflow import (
     _submit_next_url,
     run_archive_workflow,
 )
+
+
+@pytest.fixture(autouse=True)
+def _no_stale_status_checks(monkeypatch):
+    """These tests use fixed 2025 capture timestamps and poll in the same
+    instant they submit. Disable the stale-status rules here; the
+    test_stale_* tests cover them with realistic times."""
+    monkeypatch.setattr(workflow, "STALE_STATUS_WINDOW_SEC", 0)
+    monkeypatch.setattr(workflow, "CLOCK_SKEW_TOLERANCE_SEC", float("inf"))
+
 
 # --- Tests for _submit_next_url ---
 
@@ -1158,7 +1169,13 @@ def test_daily_bandwidth_limits_fail_with_a_specific_message(mock_sleep, caplog,
 
 @pytest.mark.parametrize(
     "timestamp_field",
-    [{}, {"timestamp": None}, {"timestamp": "20250101"}, {"timestamp": 20250101000000}],
+    [
+        {},
+        {"timestamp": None},
+        {"timestamp": "20250101"},
+        {"timestamp": 20250101000000},
+        {"timestamp": "20250100000000"},
+    ],
 )
 @mock.patch("wayback_machine_archiver.workflow.time.sleep")
 def test_success_without_usable_timestamp_links_to_newest_capture(mock_sleep, timestamp_field):
@@ -1179,3 +1196,133 @@ def test_success_without_usable_timestamp_links_to_newest_capture(mock_sleep, ti
             url, "success", "https://web.archive.org/web/https://example.com/page", None, "job"
         )
     ]
+
+
+# --- Stale status after resubmission ---
+# SPN2 job IDs are "spn2-" + SHA-1 of the URL, so a resubmitted URL reuses its
+# job ID and the status endpoint briefly returns the previous job's result.
+# These tests run with the production thresholds.
+
+
+@pytest.fixture
+def stale_checks_on(monkeypatch):
+    monkeypatch.setattr(workflow, "STALE_STATUS_WINDOW_SEC", 5)
+    monkeypatch.setattr(workflow, "CLOCK_SKEW_TOLERANCE_SEC", 60)
+
+
+def _utc_stamp(epoch):
+    return time.strftime("%Y%m%d%H%M%S", time.gmtime(epoch))
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_stale_success_with_an_earlier_capture_keeps_the_job_pending(mock_sleep, stale_checks_on):
+    """kaon, 2026-11-17: a 16:59 resubmit instantly reported the 14:27 capture."""
+    submitted_at = time.time()
+    earlier = _utc_stamp(submitted_at - 3 * 3600)
+    client = mock.Mock()
+    client.check_status_batch.return_value = [
+        {"job_id": "job", "status": "success", "timestamp": earlier}
+    ]
+    url = "https://example.com/page"
+    pending_jobs = {"job": {"url": url, "submitted_at": submitted_at}}
+    results = []
+
+    outcome = _poll_pending_jobs(client, pending_jobs, {}, 3, 3600, on_result=results.append)
+
+    assert outcome == ([], [], [])
+    assert results == []
+    assert pending_jobs["job"]["earlier_archive_url"] == (
+        f"https://web.archive.org/web/{earlier}/{url}"
+    )
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_stale_success_then_fresh_success_reports_the_fresh_capture(mock_sleep, stale_checks_on):
+    submitted_at = time.time()
+    earlier, fresh = _utc_stamp(submitted_at - 3 * 3600), _utc_stamp(submitted_at + 20)
+    client = mock.Mock()
+    client.check_status_batch.side_effect = [
+        [{"job_id": "job", "status": "success", "timestamp": earlier}],
+        [{"job_id": "job", "status": "pending"}],
+        [{"job_id": "job", "status": "success", "timestamp": fresh}],
+    ]
+    url = "https://example.com/page"
+    pending_jobs = {"job": {"url": url, "submitted_at": submitted_at}}
+    results = []
+
+    for _ in range(3):
+        _poll_pending_jobs(client, pending_jobs, {}, 3, 3600, on_result=results.append)
+
+    assert results == [
+        ArchiveResult(url, "success", f"https://web.archive.org/web/{fresh}/{url}", None, "job")
+    ]
+    assert pending_jobs == {}
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_stale_success_that_never_refreshes_reports_the_earlier_capture_at_timeout(
+    mock_sleep, stale_checks_on
+):
+    """The page is archived even if SPN2 never reports a new result."""
+    submitted_at = time.time() - 4000
+    earlier = _utc_stamp(submitted_at - 3 * 3600)
+    client = mock.Mock()
+    client.check_status_batch.return_value = [
+        {"job_id": "job", "status": "success", "timestamp": earlier}
+    ]
+    url = "https://example.com/page"
+    pending_jobs = {"job": {"url": url, "submitted_at": submitted_at}}
+    results = []
+
+    outcome = _poll_pending_jobs(client, pending_jobs, {}, 3, 3600, on_result=results.append)
+
+    assert outcome == ([url], [], [])
+    assert results == [
+        ArchiveResult(url, "success", f"https://web.archive.org/web/{earlier}/{url}", None, "job")
+    ]
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_capture_within_clock_skew_of_the_submit_is_fresh(mock_sleep, stale_checks_on):
+    submitted_at = time.time()
+    slightly_early = _utc_stamp(submitted_at - 30)
+    client = mock.Mock()
+    client.check_status_batch.return_value = [
+        {"job_id": "job", "status": "success", "timestamp": slightly_early}
+    ]
+    pending_jobs = {"job": {"url": "https://example.com", "submitted_at": submitted_at}}
+
+    outcome = _poll_pending_jobs(client, pending_jobs, {}, 3, 3600)
+
+    assert outcome == (["https://example.com"], [], [])
+
+
+@pytest.mark.parametrize("status_ext", ["error:job-failed", "error:not-found"])
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_stale_error_right_after_submit_is_ignored(mock_sleep, stale_checks_on, status_ext):
+    """kaon, 2026-11-17: a 14:27:00 resubmit reported the 10:52 error in the same second."""
+    client = mock.Mock()
+    client.check_status_batch.return_value = [
+        {"job_id": "job", "status": "error", "status_ext": status_ext, "message": "old"}
+    ]
+    pending_jobs = {"job": {"url": "https://example.com", "submitted_at": time.time()}}
+    retries = {}
+
+    outcome = _poll_pending_jobs(client, pending_jobs, retries, 3, 3600)
+
+    assert outcome == ([], [], [])
+    assert "job" in pending_jobs
+    assert retries == {}
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_error_after_the_stale_window_is_handled(mock_sleep, stale_checks_on):
+    client = mock.Mock()
+    client.check_status_batch.return_value = [
+        {"job_id": "job", "status": "error", "status_ext": "error:job-failed", "message": "new"}
+    ]
+    pending_jobs = {"job": {"url": "https://example.com", "submitted_at": time.time() - 30}}
+
+    outcome = _poll_pending_jobs(client, pending_jobs, {}, 3, 3600)
+
+    assert outcome == ([], [], ["https://example.com"])
