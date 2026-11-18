@@ -1096,11 +1096,13 @@ def test_poll_normalizes_malformed_error_codes(mock_sleep, status_ext):
     assert pending_jobs == {}
 
 
+@pytest.mark.parametrize("status_ext_field", [{}, {"status_ext": None}])
 @mock.patch("wayback_machine_archiver.workflow.time.sleep")
-def test_error_without_status_ext_reports_unknown_error(mock_sleep):
+def test_error_without_status_ext_reports_unknown_error(mock_sleep, status_ext_field):
+    """An absent and an explicit null status_ext produce the same result."""
     client = mock.Mock()
     client.check_status_batch.return_value = [
-        {"job_id": "job", "status": "error", "message": "no code given"}
+        {"job_id": "job", "status": "error", "message": "no code given", **status_ext_field}
     ]
     url = "https://example.com"
     pending_jobs = {"job": {"url": url, "submitted_at": time.time()}}
