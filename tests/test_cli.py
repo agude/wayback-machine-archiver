@@ -254,3 +254,13 @@ def test_invalid_urls_are_filtered_with_warning(
     # Invalid URLs should be logged as warnings
     assert "not-a-url" in caplog.text
     assert "ftp://wrong.com" in caplog.text
+
+
+@pytest.mark.parametrize("flag", ["--if-not-archived-within", "--capture-cookie", "--user-agent"])
+@pytest.mark.parametrize("value", ["", "   "])
+def test_api_string_options_reject_empty_values(flag, value, capsys):
+    """An empty value would otherwise be silently dropped from the API request."""
+    parser = create_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["http://example.com", flag, value])
+    assert "must not be empty" in capsys.readouterr().err
