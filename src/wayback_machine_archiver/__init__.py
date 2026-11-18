@@ -1,3 +1,3 @@
-__version__ = "4.1.1"
+__version__ = "5.0.0"
 
 REQUEST_TIMEOUT = (10, 60)
