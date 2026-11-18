@@ -979,3 +979,24 @@ def test_callback_requeue_then_success_produces_one_record(mock_sleep):
         error_code=None,
         job_id="job-2",
     )
+
+
+@mock.patch("wayback_machine_archiver.workflow.MAX_PENDING_JOBS", 1)
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_jobs_after_a_poll_give_up_get_the_full_failure_allowance(mock_sleep):
+    """
+    After a give-up fails every pending job, the next job must also survive
+    MAX_CONSECUTIVE_POLL_FAILURES failed polls, not just one.
+    """
+    client = mock.Mock()
+    client.submit_capture.side_effect = ["job-a", "job-b"]
+    client.check_status_batch.side_effect = requests.exceptions.ConnectionError("down")
+    results = []
+
+    counts = run_archive_workflow(
+        client, ["http://a.com", "http://b.com"], 0, {}, on_result=results.append
+    )
+
+    assert counts == (0, 2)
+    assert [r.error_code for r in results] == ["poll_failure", "poll_failure"]
+    assert client.check_status_batch.call_count == 2 * MAX_CONSECUTIVE_POLL_FAILURES
