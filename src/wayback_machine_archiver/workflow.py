@@ -394,6 +394,7 @@ def run_archive_workflow(
                         )
                     failure_count += len(pending_jobs)
                     pending_jobs.clear()
+                    consecutive_poll_failures = 0
                 else:
                     time.sleep(polling_wait_time)
                     polling_wait_time = min(
