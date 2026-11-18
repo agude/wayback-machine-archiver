@@ -49,6 +49,7 @@ dev = [
     "types-defusedxml",
     "ruff>=0.16",
     "mypy>=1.15",
+    "hypothesis>=6.168.5",
 ]
 
 [tool.hatch.version]
