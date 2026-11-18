@@ -979,3 +979,21 @@ def test_callback_requeue_then_success_produces_one_record(mock_sleep):
         error_code=None,
         job_id="job-2",
     )
+
+
+@pytest.mark.parametrize("status_ext", [[], {"detail": "unknown"}, 42, False])
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_poll_normalizes_malformed_error_codes(mock_sleep, status_ext):
+    client = mock.Mock()
+    client.check_status_batch.return_value = [
+        {"job_id": "job", "status": "error", "status_ext": status_ext},
+    ]
+    url = "https://example.com"
+    pending_jobs = {"job": {"url": url, "submitted_at": time.time()}}
+    results = []
+
+    outcome = _poll_pending_jobs(client, pending_jobs, {}, 3, 30, on_result=results.append)
+
+    assert outcome == ([], [url], [])
+    assert results == [ArchiveResult(url, "failed", None, "error:unknown", "job")]
+    assert pending_jobs == {}
