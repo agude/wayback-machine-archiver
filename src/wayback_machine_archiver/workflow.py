@@ -89,6 +89,9 @@ PERMANENT_ERROR_MESSAGES = {
     "error:too-many-daily-captures": "This URL has already been captured the maximum number of times today.",
     "error:too-many-redirects": "The URL has too many redirects, likely indicating a redirect loop.",
     "error:unauthorized": "The page requires a login (401 Unauthorized). To save the login/error page, use the --capture-all flag.",
+    "error:max-daily-bandwidth": "Your account has reached its daily capture bandwidth limit (5 GB).",
+    "error:max-daily-bandwidth-from-ip": "This IP address has reached its daily anonymous capture bandwidth limit (2 GB).",
+    "error:max-daily-bandwidth-host": "The Internet Archive has reached its daily capture bandwidth limit for this host (100 GB).",
 }
 
 # Workflow configuration constants

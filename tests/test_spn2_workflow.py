@@ -1128,3 +1128,27 @@ def test_workflow_passes_api_params_to_every_submission(mock_sleep):
         api_params,
         api_params,
     ]
+
+
+@pytest.mark.parametrize(
+    "status_ext",
+    [
+        "error:max-daily-bandwidth",
+        "error:max-daily-bandwidth-from-ip",
+        "error:max-daily-bandwidth-host",
+    ],
+)
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_daily_bandwidth_limits_fail_with_a_specific_message(mock_sleep, caplog, status_ext):
+    """The SPN2 doc lists these quota codes; retrying within a run cannot help."""
+    client = mock.Mock()
+    client.check_status_batch.return_value = [
+        {"job_id": "job", "status": "error", "status_ext": status_ext, "message": "limit"}
+    ]
+    pending_jobs = {"job": {"url": "http://a.com", "submitted_at": time.time()}}
+
+    with caplog.at_level(logging.ERROR):
+        outcome = _poll_pending_jobs(client, pending_jobs, {}, 3, 7200)
+
+    assert outcome == ([], ["http://a.com"], [])
+    assert PERMANENT_ERROR_MESSAGES[status_ext] in caplog.text
