@@ -57,7 +57,12 @@ def extract_urls_from_sitemap(sitemap_bytes: bytes) -> tuple[set[str], set[str]]
     root = ET.fromstring(sitemap_bytes)
     namespace = get_namespace(root)
     loc_nodes = root.findall(f".//{namespace}loc")
-    urls = {node.text for node in loc_nodes if node.text is not None}
+    urls = set()
+    for node in loc_nodes:
+        if node.text:
+            url = node.text.strip()
+            if url:
+                urls.add(url)
 
     if _is_sitemap_index(root, namespace):
         return set(), urls
