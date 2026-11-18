@@ -1326,3 +1326,39 @@ def test_error_after_the_stale_window_is_handled(mock_sleep, stale_checks_on):
     outcome = _poll_pending_jobs(client, pending_jobs, {}, 3, 3600)
 
     assert outcome == ([], [], ["https://example.com"])
+
+
+# --- Rate limiting ---
+
+
+def _http_error(status_code):
+    response = requests.Response()
+    response.status_code = status_code
+    return requests.exceptions.HTTPError(f"{status_code} error", response=response)
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_submit_rate_limited_requeues_and_cools_down(mock_sleep):
+    client = mock.Mock()
+    client.submit_capture.side_effect = _http_error(429)
+    urls = ["http://a.com"]
+    attempts = {}
+
+    status = _submit_next_url(urls, client, {}, 0, attempts, {})
+
+    assert status is None
+    assert urls == ["http://a.com"]
+    assert attempts == {"http://a.com": 1}
+    mock_sleep.assert_called_once_with(workflow.RATE_LIMITED_COOLDOWN_SEC)
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_submit_server_error_requeues_without_cooldown(mock_sleep):
+    client = mock.Mock()
+    client.submit_capture.side_effect = _http_error(503)
+    urls = ["http://a.com"]
+
+    _submit_next_url(urls, client, {}, 0, {}, {})
+
+    assert urls == ["http://a.com"]
+    mock_sleep.assert_not_called()

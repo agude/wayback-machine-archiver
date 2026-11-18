@@ -13,12 +13,17 @@ from dotenv import load_dotenv
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from . import __version__
 from .cli import create_parser
 from .clients import SPN2Client
 from .sitemaps import process_sitemaps
 from .workflow import _NOOP_CALLBACK, ArchiveResult, run_archive_workflow
 
 _DEFAULT_RETRY_COUNT = 5
+
+USER_AGENT = (
+    f"wayback-machine-archiver/{__version__} (+https://github.com/agude/wayback-machine-archiver)"
+)
 
 
 def _create_session_with_retries(
@@ -27,10 +32,14 @@ def _create_session_with_retries(
 ) -> requests.Session:
     """Create a requests session with retry logic for transient errors."""
     session = requests.Session()
+    session.headers["User-Agent"] = USER_AGENT
     retries = Retry(
         total=total_retries,
         backoff_factor=backoff_factor,
-        status_forcelist=[429, 500, 502, 503, 504, 520],
+        # 429 is deliberately absent. Retrying it here turned every rate-limited
+        # submission into six POST /save requests, and that volume got the host
+        # flagged as abusive bot traffic. The workflow re-queues instead.
+        status_forcelist=[500, 502, 503, 504, 520],
         allowed_methods=["HEAD", "GET", "POST", "PUT", "DELETE", "OPTIONS", "TRACE"],
     )
     # Mount to both protocols to ensure retry logic applies regardless of target scheme

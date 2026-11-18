@@ -669,3 +669,18 @@ def test_json_with_log_to_file(
 
     log_contents = log_file.read_text()
     assert url_to_archive in log_contents
+
+
+def test_session_identifies_itself_and_does_not_retry_429():
+    """A python-requests User-Agent plus retried 429s got the host flagged as a bot."""
+    from wayback_machine_archiver import __version__
+    from wayback_machine_archiver.archiver import USER_AGENT, _create_session_with_retries
+
+    session = _create_session_with_retries()
+
+    assert session.headers["User-Agent"] == USER_AGENT
+    assert USER_AGENT.startswith(f"wayback-machine-archiver/{__version__} ")
+    for prefix in ("https://", "http://"):
+        retry = session.get_adapter(prefix + "web.archive.org").max_retries
+        assert 429 not in retry.status_forcelist
+        assert 503 in retry.status_forcelist

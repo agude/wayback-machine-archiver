@@ -113,6 +113,8 @@ STALE_STATUS_WINDOW_SEC = 5
 # Allowed difference between the local clock and the Internet Archive's when
 # comparing a capture timestamp with the submit time.
 CLOCK_SKEW_TOLERANCE_SEC = 60
+# Pause after SPN2 answers a submission with HTTP 429, before the next one.
+RATE_LIMITED_COOLDOWN_SEC = 60
 
 
 def _capture_epoch(timestamp: str) -> float:
@@ -190,6 +192,13 @@ def _submit_next_url(
             e,
         )
         urls_to_process.append(url)
+        response = getattr(e, "response", None)
+        if response is not None and response.status_code == 429:
+            logging.warning(
+                "SPN2 is rate limiting submissions (HTTP 429). Pausing %d seconds.",
+                RATE_LIMITED_COOLDOWN_SEC,
+            )
+            time.sleep(RATE_LIMITED_COOLDOWN_SEC)
         return None
 
     if not job_id:
