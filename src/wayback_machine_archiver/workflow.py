@@ -227,13 +227,15 @@ def _poll_pending_jobs(
             del pending_jobs[job_id]
             successful_urls.append(original_url)
         elif status == "error":
-            status_ext: str = status_data.get("status_ext", "error:unknown")
+            status_ext: str | None = status_data.get("status_ext", "error:unknown")
+            if status_ext is not None and not isinstance(status_ext, str):
+                status_ext = "error:unknown"
             api_message = status_data.get("message", "Unknown error")
 
             if isinstance(api_message, str) and "RecursionError" in api_message:
                 status_ext = "error:recursion-error"
 
-            if status_ext in REQUEUE_ERRORS:
+            if status_ext is not None and status_ext in REQUEUE_ERRORS:
                 retry_count = transient_error_retries.get(original_url, 0) + 1
                 transient_error_retries[original_url] = retry_count
 
@@ -271,7 +273,7 @@ def _poll_pending_jobs(
                     requeued_urls.append(original_url)
             else:
                 helpful_message = PERMANENT_ERROR_MESSAGES.get(
-                    status_ext, "An unrecoverable error occurred."
+                    status_ext or "", "An unrecoverable error occurred."
                 )
                 logging.error(
                     "Permanent error for %s: %s (API message: %s)",
