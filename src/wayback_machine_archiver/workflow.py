@@ -284,28 +284,34 @@ def _poll_pending_jobs(
                 )
                 del pending_jobs[job_id]
                 failed_urls.append(original_url)
-        else:
-            submitted_at = pending_jobs[job_id]["submitted_at"]
-            job_age = time.time() - submitted_at
-            if job_age > job_timeout_sec:
-                logging.error(
-                    "Job for %s timed out after being pending for over %d seconds. Marking as failed.",
-                    original_url,
-                    job_timeout_sec,
-                )
-                on_result(
-                    ArchiveResult(
-                        url=original_url,
-                        status="failed",
-                        archive_url=None,
-                        error_code="timeout",
-                        job_id=job_id,
-                    )
-                )
-                del pending_jobs[job_id]
-                failed_urls.append(original_url)
-            else:
-                logging.debug("Job %s (%s) is still pending...", job_id, original_url)
+    # A batch can omit pending jobs entirely. Apply the timeout after processing
+    # available terminal statuses so those statuses retain precedence.
+    now = time.time()
+    for job_id in job_ids_to_check:
+        job = pending_jobs.get(job_id)
+        if job is None:
+            continue
+        if now - job["submitted_at"] <= job_timeout_sec:
+            logging.debug("Job %s (%s) is still pending...", job_id, job["url"])
+            continue
+
+        url = job["url"]
+        logging.error(
+            "Job for %s timed out after being pending for over %d seconds. Marking as failed.",
+            url,
+            job_timeout_sec,
+        )
+        on_result(
+            ArchiveResult(
+                url=url,
+                status="failed",
+                archive_url=None,
+                error_code="timeout",
+                job_id=job_id,
+            )
+        )
+        del pending_jobs[job_id]
+        failed_urls.append(url)
 
     # A short sleep after each batch poll to be nice to the API.
     time.sleep(poll_interval_sec)
