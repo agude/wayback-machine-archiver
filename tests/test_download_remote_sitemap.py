@@ -38,3 +38,17 @@ def test_download_remote_sitemap_with_status_error(requests_mock, session):
     requests_mock.get(url, content=SITEMAP.encode("UTF-8"), status_code=404)
     with pytest.raises(requests.exceptions.HTTPError):
         download_remote_sitemap(url, session)
+
+
+def test_download_remote_sitemap_sets_a_request_timeout():
+    """Without a timeout, an unresponsive sitemap host blocks the run forever."""
+    from unittest import mock
+
+    from wayback_machine_archiver import REQUEST_TIMEOUT
+
+    session = mock.Mock()
+    session.get.return_value.content = b"<urlset/>"
+
+    download_remote_sitemap("https://example.com/sitemap.xml", session)
+
+    session.get.assert_called_once_with("https://example.com/sitemap.xml", timeout=REQUEST_TIMEOUT)

@@ -979,3 +979,37 @@ def test_callback_requeue_then_success_produces_one_record(mock_sleep):
         error_code=None,
         job_id="job-2",
     )
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_error_without_status_ext_reports_unknown_error(mock_sleep):
+    client = mock.Mock()
+    client.check_status_batch.return_value = [
+        {"job_id": "job", "status": "error", "message": "no code given"}
+    ]
+    url = "https://example.com"
+    pending_jobs = {"job": {"url": url, "submitted_at": time.time()}}
+    results = []
+
+    outcome = _poll_pending_jobs(client, pending_jobs, {}, 3, 30, on_result=results.append)
+
+    assert outcome == ([], [url], [])
+    assert results == [ArchiveResult(url, "failed", None, "error:unknown", "job")]
+
+
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_workflow_passes_api_params_to_every_submission(mock_sleep):
+    client = mock.Mock()
+    client.submit_capture.side_effect = ["job-a", "job-b"]
+    client.check_status_batch.return_value = [
+        {"job_id": "job-a", "status": "success", "timestamp": "20250101000000"},
+        {"job_id": "job-b", "status": "success", "timestamp": "20250101000000"},
+    ]
+    api_params = {"capture_all": "1", "js_behavior_timeout": 0}
+
+    run_archive_workflow(client, ["http://a.com", "http://b.com"], 0, api_params)
+
+    assert [c.kwargs["api_params"] for c in client.submit_capture.call_args_list] == [
+        api_params,
+        api_params,
+    ]
