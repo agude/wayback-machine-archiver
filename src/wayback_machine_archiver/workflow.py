@@ -194,9 +194,15 @@ def _poll_pending_jobs(
     batch_statuses: list[dict[str, Any]] = client.check_status_batch(job_ids_to_check)
 
     for status_data in batch_statuses:
+        if not isinstance(status_data, dict):
+            logging.debug("Ignoring non-object status response: %s", status_data)
+            continue
         job_id = status_data.get("job_id")
         if not job_id:
             logging.debug("Status response missing job_id: %s", status_data)
+            continue
+        if not isinstance(job_id, str):
+            logging.debug("Status response has invalid job_id: %s", job_id)
             continue
         if job_id not in pending_jobs:
             logging.debug("Received status for unknown job_id: %s", job_id)

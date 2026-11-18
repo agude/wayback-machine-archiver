@@ -1062,3 +1062,18 @@ def test_non_string_error_message_preserves_error_code(mock_sleep, message):
 
     assert outcome == ([], [url], [])
     assert results == [ArchiveResult(url, "failed", None, "error:not-found", "job")]
+
+
+@pytest.mark.parametrize("invalid_row", [None, [], "pending", {"job_id": ["job"]}])
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_poll_skips_malformed_status_rows(mock_sleep, invalid_row):
+    client = mock.Mock()
+    client.check_status_batch.return_value = [
+        invalid_row,
+        {"job_id": "job", "status": "success", "timestamp": "20260101000000"},
+    ]
+    url = "https://example.com"
+    pending_jobs = {"job": {"url": url, "submitted_at": time.time()}}
+
+    assert _poll_pending_jobs(client, pending_jobs, {}, 3, 30) == ([url], [], [])
+    assert pending_jobs == {}
