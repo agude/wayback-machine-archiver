@@ -224,7 +224,7 @@ def _poll_pending_jobs(
             status_ext: str = status_data.get("status_ext", "error:unknown")
             api_message = status_data.get("message", "Unknown error")
 
-            if "RecursionError" in api_message:
+            if isinstance(api_message, str) and "RecursionError" in api_message:
                 status_ext = "error:recursion-error"
 
             if status_ext in REQUEUE_ERRORS:

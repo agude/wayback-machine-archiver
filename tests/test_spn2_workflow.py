@@ -1040,3 +1040,25 @@ def test_jobs_after_a_poll_give_up_get_the_full_failure_allowance(mock_sleep):
     assert counts == (0, 2)
     assert [r.error_code for r in results] == ["poll_failure", "poll_failure"]
     assert client.check_status_batch.call_count == 2 * MAX_CONSECUTIVE_POLL_FAILURES
+
+
+@pytest.mark.parametrize("message", [None, 0, {}, ["RecursionError"]])
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_non_string_error_message_preserves_error_code(mock_sleep, message):
+    client = mock.Mock()
+    client.check_status_batch.return_value = [
+        {
+            "job_id": "job",
+            "status": "error",
+            "status_ext": "error:not-found",
+            "message": message,
+        },
+    ]
+    url = "https://example.com"
+    pending_jobs = {"job": {"url": url, "submitted_at": time.time()}}
+    results = []
+
+    outcome = _poll_pending_jobs(client, pending_jobs, {}, 3, 30, on_result=results.append)
+
+    assert outcome == ([], [url], [])
+    assert results == [ArchiveResult(url, "failed", None, "error:not-found", "job")]
