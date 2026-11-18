@@ -979,3 +979,19 @@ def test_callback_requeue_then_success_produces_one_record(mock_sleep):
         error_code=None,
         job_id="job-2",
     )
+
+
+@pytest.mark.parametrize("batch_statuses", [[], [{"message": "No statuses found"}]])
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_poll_times_out_job_omitted_from_batch(mock_sleep, batch_statuses):
+    client = mock.Mock()
+    client.check_status_batch.return_value = batch_statuses
+    url = "https://example.com"
+    pending_jobs = {"job": {"url": url, "submitted_at": time.time() - 60}}
+    results = []
+
+    outcome = _poll_pending_jobs(client, pending_jobs, {}, 3, 30, on_result=results.append)
+
+    assert outcome == ([], [url], [])
+    assert results == [ArchiveResult(url, "failed", None, "timeout", "job")]
+    assert pending_jobs == {}
