@@ -57,7 +57,12 @@ def extract_urls_from_sitemap(sitemap_bytes: bytes) -> tuple[set[str], set[str]]
     root = ET.fromstring(sitemap_bytes)
     namespace = get_namespace(root)
     loc_nodes = root.findall(f".//{namespace}loc")
-    urls = {node.text for node in loc_nodes if node.text is not None}
+    urls = set()
+    for node in loc_nodes:
+        if node.text:
+            url = node.text.strip()
+            if url:
+                urls.add(url)
 
     if _is_sitemap_index(root, namespace):
         return set(), urls
@@ -82,10 +87,15 @@ def process_sitemaps(
     Recurses into sitemap index files up to MAX_SITEMAP_INDEX_DEPTH levels.
     """
     all_urls: set[str] = set()
+    visited: set[str] = set()
     queue: deque[tuple[str, int]] = deque((url, 0) for url in sitemap_urls)
 
     while queue:
         sitemap_url, depth = queue.popleft()
+        if sitemap_url in visited:
+            continue
+        visited.add(sitemap_url)
+
         try:
             sitemap_xml = _fetch_sitemap_bytes(sitemap_url, session)
             page_urls, child_sitemaps = extract_urls_from_sitemap(sitemap_xml)

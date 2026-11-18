@@ -9,9 +9,20 @@ from unittest import mock
 
 import pytest
 
+from wayback_machine_archiver import workflow
 from wayback_machine_archiver.archiver import _write_json_result, main
 from wayback_machine_archiver.clients import SPN2Client
 from wayback_machine_archiver.workflow import _NOOP_CALLBACK, ArchiveResult
+
+
+@pytest.fixture(autouse=True)
+def _no_stale_status_checks(monkeypatch):
+    """These tests use fixed 2025 capture timestamps and poll in the same
+    instant they submit. Disable the stale-status rules here; the
+    test_stale_* tests cover them with realistic times."""
+    monkeypatch.setattr(workflow, "STALE_STATUS_WINDOW_SEC", 0)
+    monkeypatch.setattr(workflow, "CLOCK_SKEW_TOLERANCE_SEC", float("inf"))
+
 
 # Test constants
 DUMMY_CREDENTIALS = "dummy_key"
@@ -341,7 +352,7 @@ def test_write_json_result_success(capsys):
         ArchiveResult(
             url="http://example.com",
             status="success",
-            archive_url="https://web.archive.org/web/20250101/http://example.com",
+            archive_url="https://web.archive.org/web/20250101000000/http://example.com",
             error_code=None,
             job_id="job-abc",
         )
@@ -352,7 +363,7 @@ def test_write_json_result_success(capsys):
     assert record["url"] == "http://example.com"
     assert record["job_id"] == "job-abc"
     assert record["status"] == "success"
-    assert record["archive_url"] == "https://web.archive.org/web/20250101/http://example.com"
+    assert record["archive_url"] == "https://web.archive.org/web/20250101000000/http://example.com"
     assert record["error_code"] is None
     recorded = datetime.fromisoformat(record["recorded_at"])
     assert before <= recorded <= datetime.now(timezone.utc)
@@ -499,7 +510,7 @@ def test_json_multi_url(
             {
                 "status": "success",
                 "job_id": jid,
-                "timestamp": f"2025010{jid.split('-')[1]}",
+                "timestamp": f"2025010{int(jid.split('-')[1]) + 1}000000",
             }
             for jid in requested_ids
         ]
@@ -658,3 +669,18 @@ def test_json_with_log_to_file(
 
     log_contents = log_file.read_text()
     assert url_to_archive in log_contents
+
+
+def test_session_identifies_itself_and_does_not_retry_429():
+    """A python-requests User-Agent plus retried 429s got the host flagged as a bot."""
+    from wayback_machine_archiver import __version__
+    from wayback_machine_archiver.archiver import USER_AGENT, _create_session_with_retries
+
+    session = _create_session_with_retries()
+
+    assert session.headers["User-Agent"] == USER_AGENT
+    assert USER_AGENT.startswith(f"wayback-machine-archiver/{__version__} ")
+    for prefix in ("https://", "http://"):
+        retry = session.get_adapter(prefix + "web.archive.org").max_retries
+        assert 429 not in retry.status_forcelist
+        assert 503 in retry.status_forcelist

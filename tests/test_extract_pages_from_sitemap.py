@@ -81,3 +81,12 @@ def test_sitemap_index():
         "https://example.com/sitemap1.xml",
         "https://example.com/sitemap2.xml",
     }
+
+
+def test_sitemap_loc_trims_surrounding_whitespace():
+    sitemap = b"""<urlset>
+        <url><loc><![CDATA[  https://example.com/  ]]></loc></url>
+        <url><loc>  </loc></url>
+    </urlset>"""
+
+    assert extract_urls_from_sitemap(sitemap) == ({"https://example.com/"}, set())

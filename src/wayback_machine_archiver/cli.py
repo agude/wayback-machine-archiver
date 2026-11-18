@@ -5,6 +5,13 @@ from . import __version__
 from .sitemaps import LOCAL_PREFIX
 
 
+def _non_empty(value: str) -> str:
+    """argparse type that rejects an empty or whitespace-only value."""
+    if not value.strip():
+        raise argparse.ArgumentTypeError("must not be empty")
+    return value
+
+
 def create_parser() -> argparse.ArgumentParser:
     """Creates and returns the argparse parser."""
     parser = argparse.ArgumentParser(
@@ -117,7 +124,7 @@ def create_parser() -> argparse.ArgumentParser:
     )
     api_group.add_argument(
         "--if-not-archived-within",
-        type=str,
+        type=_non_empty,
         metavar="<timedelta>",
         help="Captures only if the latest capture is older than <timedelta> (e.g., '3d 5h').",
     )
@@ -129,13 +136,13 @@ def create_parser() -> argparse.ArgumentParser:
     )
     api_group.add_argument(
         "--capture-cookie",
-        type=str,
+        type=_non_empty,
         metavar="<cookie>",
         help="Uses an extra HTTP Cookie value when capturing the target page.",
     )
     api_group.add_argument(
         "--user-agent",
-        type=str,
+        type=_non_empty,
         metavar="<string>",
         dest="use_user_agent",
         help="Uses a custom HTTP User-Agent value when capturing the target page.",

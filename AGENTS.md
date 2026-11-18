@@ -20,7 +20,8 @@ just sync         # install dependencies
 just lint         # ruff check + ruff format --check (read-only)
 just format       # ruff format + ruff check --fix (mutating)
 just type-check   # mypy strict over the package
-just test         # pytest with the 90% coverage gate
+just test         # pytest with the 90% coverage gate (property tests at the ci profile)
+just proptest     # property tests only, 20,000 examples each (slow, not in CI)
 just check        # everything CI runs: lint + type-check + test
 just hooks-install  # install bin/pre-commit.sh into this clone
 just help         # archiver --help
@@ -67,6 +68,21 @@ disagrees fails the release job by design.
 
 `requests-mock` for HTTP, `unittest.mock` for environment and IO. Test files
 mirror the module structure (`test_cli.py`, `test_spn2_client.py`, …).
+
+`tests/properties/` holds Hypothesis property tests. The main one,
+`test_workflow_rounds_props.py`, drives `run_archive_workflow` against a fake
+SPN2 client and compares every URL's outcome and call counts with a small
+reference model. The fake mirrors real SPN2 behavior: job IDs are
+`"spn2-" + sha1(url)`, so a resubmitted URL reuses its ID, and the status
+endpoint briefly replays the previous job's result. A virtual clock
+(`conftest.py`) replaces `time.time` and `time.sleep`. Select the profile with
+`HYPOTHESIS_PROFILE` (`ci`, the default, or `long`).
+
+The stale-status thresholds `STALE_STATUS_WINDOW_SEC` and
+`CLOCK_SKEW_TOLERANCE_SEC` are read at call time. Older workflow tests that use
+fixed 2025 timestamps, or poll in the same instant they submit, disable them
+with an autouse fixture; the `test_stale_*` tests and the round-based property
+cover them at production values.
 
 **Known gap:** `type-check` covers the package only. Running mypy over
 `tests/` surfaces 26 real errors — mostly test fixtures building plain dicts

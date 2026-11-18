@@ -26,9 +26,13 @@ format:
 type-check:
     uv run mypy src/wayback_machine_archiver/
 
-# Run tests
+# Run tests, including property tests with the quick "ci" Hypothesis profile
 test *args:
     uv run pytest -vv {{ args }}
+
+# Run property tests with the long Hypothesis profile (20,000 examples each)
+proptest *args:
+    HYPOTHESIS_PROFILE=long uv run pytest tests/properties --no-cov {{ args }}
 
 # Everything CI runs
 check: lint type-check test

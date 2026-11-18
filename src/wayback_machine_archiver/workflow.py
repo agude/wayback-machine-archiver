@@ -2,7 +2,8 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Literal, TypedDict
+from datetime import datetime, timezone
+from typing import Any, Literal, TypedDict, TypeGuard
 
 import requests
 
@@ -89,6 +90,9 @@ PERMANENT_ERROR_MESSAGES = {
     "error:too-many-daily-captures": "This URL has already been captured the maximum number of times today.",
     "error:too-many-redirects": "The URL has too many redirects, likely indicating a redirect loop.",
     "error:unauthorized": "The page requires a login (401 Unauthorized). To save the login/error page, use the --capture-all flag.",
+    "error:max-daily-bandwidth": "Your account has reached its daily capture bandwidth limit (5 GB).",
+    "error:max-daily-bandwidth-from-ip": "This IP address has reached its daily anonymous capture bandwidth limit (2 GB).",
+    "error:max-daily-bandwidth-host": "The Internet Archive has reached its daily capture bandwidth limit for this host (100 GB).",
 }
 
 # Workflow configuration constants
@@ -100,12 +104,48 @@ POLLING_BACKOFF_FACTOR = 1.5
 MAX_CONSECUTIVE_POLL_FAILURES = 5
 MAX_PENDING_JOBS = 10
 
+# SPN2 job IDs are "spn2-" + SHA-1 of the submitted URL, so a resubmitted URL
+# reuses its previous job ID, and the status endpoint keeps returning that
+# earlier job's result for a short time. Production logs show these stale
+# results within 2 seconds of the submit, and genuine results no earlier than
+# 5 seconds. An error status that arrives sooner than this is treated as stale.
+STALE_STATUS_WINDOW_SEC = 5
+# Allowed difference between the local clock and the Internet Archive's when
+# comparing a capture timestamp with the submit time.
+CLOCK_SKEW_TOLERANCE_SEC = 60
+# Pause after SPN2 answers a submission with HTTP 429, before the next one.
+RATE_LIMITED_COOLDOWN_SEC = 60
 
-class PendingJob(TypedDict):
-    """Type for pending job entries."""
 
+def _capture_epoch(timestamp: str) -> float:
+    """Seconds since the epoch for a 14-digit UTC capture timestamp."""
+    return datetime.strptime(timestamp, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc).timestamp()
+
+
+def _is_capture_timestamp(value: object) -> TypeGuard[str]:
+    """True for a Wayback capture timestamp: a valid YYYYMMDDhhmmss date."""
+    if not (isinstance(value, str) and len(value) == 14 and value.isascii() and value.isdigit()):
+        return False
+    try:
+        _capture_epoch(value)
+    except ValueError:
+        return False
+    return True
+
+
+class _PendingJobRequired(TypedDict):
     url: str
     submitted_at: float
+
+
+class PendingJob(_PendingJobRequired, total=False):
+    """Type for pending job entries.
+
+    earlier_archive_url records a stale success: a capture that predates this
+    submission. It is reported if the job times out without a fresh result.
+    """
+
+    earlier_archive_url: str
 
 
 def _submit_next_url(
@@ -152,6 +192,13 @@ def _submit_next_url(
             e,
         )
         urls_to_process.append(url)
+        response = getattr(e, "response", None)
+        if response is not None and response.status_code == 429:
+            logging.warning(
+                "SPN2 is rate limiting submissions (HTTP 429). Pausing %d seconds.",
+                RATE_LIMITED_COOLDOWN_SEC,
+            )
+            time.sleep(RATE_LIMITED_COOLDOWN_SEC)
         return None
 
     if not job_id:
@@ -194,20 +241,46 @@ def _poll_pending_jobs(
     batch_statuses: list[dict[str, Any]] = client.check_status_batch(job_ids_to_check)
 
     for status_data in batch_statuses:
+        if not isinstance(status_data, dict):
+            logging.debug("Ignoring non-object status response: %s", status_data)
+            continue
         job_id = status_data.get("job_id")
         if not job_id:
             logging.debug("Status response missing job_id: %s", status_data)
+            continue
+        if not isinstance(job_id, str):
+            logging.debug("Status response has invalid job_id: %s", job_id)
             continue
         if job_id not in pending_jobs:
             logging.debug("Received status for unknown job_id: %s", job_id)
             continue
 
-        original_url = pending_jobs[job_id]["url"]
+        job = pending_jobs[job_id]
+        original_url = job["url"]
         status = status_data.get("status")
+        job_age = time.time() - job["submitted_at"]
 
         if status == "success":
             timestamp = status_data.get("timestamp")
-            archive_url = f"https://web.archive.org/web/{timestamp}/{original_url}"
+            if _is_capture_timestamp(timestamp):
+                archive_url = f"https://web.archive.org/web/{timestamp}/{original_url}"
+                if _capture_epoch(timestamp) < job["submitted_at"] - CLOCK_SKEW_TOLERANCE_SEC:
+                    logging.debug(
+                        "Job %s reports an earlier capture (%s); waiting for this submission's result.",
+                        job_id,
+                        timestamp,
+                    )
+                    job["earlier_archive_url"] = archive_url
+                    continue
+            else:
+                # The capture exists, but SPN2 did not say when. A timestamp-free
+                # Wayback URL resolves to the newest capture of the page.
+                logging.warning(
+                    "Success for job %s has no usable capture timestamp (%r). Linking to the newest capture.",
+                    job_id,
+                    timestamp,
+                )
+                archive_url = f"https://web.archive.org/web/{original_url}"
             logging.info("Success for job %s: %s", job_id, archive_url)
             on_result(
                 ArchiveResult(
@@ -221,10 +294,20 @@ def _poll_pending_jobs(
             del pending_jobs[job_id]
             successful_urls.append(original_url)
         elif status == "error":
-            status_ext: str = status_data.get("status_ext", "error:unknown")
+            if job_age < STALE_STATUS_WINDOW_SEC:
+                logging.debug(
+                    "Ignoring an error for job %s %.1fs after submission; it belongs to an earlier job with the same ID.",
+                    job_id,
+                    job_age,
+                )
+                continue
+            # An explicit null, a non-string, or an absent field all mean
+            # SPN2 gave no usable code; the API documentation shows only strings.
+            raw_status_ext = status_data.get("status_ext")
+            status_ext = raw_status_ext if isinstance(raw_status_ext, str) else "error:unknown"
             api_message = status_data.get("message", "Unknown error")
 
-            if "RecursionError" in api_message:
+            if isinstance(api_message, str) and "RecursionError" in api_message:
                 status_ext = "error:recursion-error"
 
             if status_ext in REQUEUE_ERRORS:
@@ -284,28 +367,57 @@ def _poll_pending_jobs(
                 )
                 del pending_jobs[job_id]
                 failed_urls.append(original_url)
-        else:
-            submitted_at = pending_jobs[job_id]["submitted_at"]
-            job_age = time.time() - submitted_at
-            if job_age > job_timeout_sec:
-                logging.error(
-                    "Job for %s timed out after being pending for over %d seconds. Marking as failed.",
-                    original_url,
-                    job_timeout_sec,
+    # A batch can omit pending jobs entirely. Apply the timeout after processing
+    # available terminal statuses so those statuses retain precedence.
+    now = time.time()
+    for job_id in job_ids_to_check:
+        pending = pending_jobs.get(job_id)
+        if pending is None:
+            continue
+        if now - pending["submitted_at"] <= job_timeout_sec:
+            logging.debug("Job %s (%s) is still pending...", job_id, pending["url"])
+            continue
+
+        url = pending["url"]
+        earlier_archive_url = pending.get("earlier_archive_url")
+        if earlier_archive_url:
+            # SPN2 never reported a result for this submission, but it did
+            # report an earlier capture of the page. The page is archived.
+            logging.warning(
+                "Job for %s produced no new result in %d seconds. Reporting the earlier capture %s.",
+                url,
+                job_timeout_sec,
+                earlier_archive_url,
+            )
+            on_result(
+                ArchiveResult(
+                    url=url,
+                    status="success",
+                    archive_url=earlier_archive_url,
+                    error_code=None,
+                    job_id=job_id,
                 )
-                on_result(
-                    ArchiveResult(
-                        url=original_url,
-                        status="failed",
-                        archive_url=None,
-                        error_code="timeout",
-                        job_id=job_id,
-                    )
-                )
-                del pending_jobs[job_id]
-                failed_urls.append(original_url)
-            else:
-                logging.debug("Job %s (%s) is still pending...", job_id, original_url)
+            )
+            del pending_jobs[job_id]
+            successful_urls.append(url)
+            continue
+
+        logging.error(
+            "Job for %s timed out after being pending for over %d seconds. Marking as failed.",
+            url,
+            job_timeout_sec,
+        )
+        on_result(
+            ArchiveResult(
+                url=url,
+                status="failed",
+                archive_url=None,
+                error_code="timeout",
+                job_id=job_id,
+            )
+        )
+        del pending_jobs[job_id]
+        failed_urls.append(url)
 
     # A short sleep after each batch poll to be nice to the API.
     time.sleep(poll_interval_sec)
@@ -388,6 +500,7 @@ def run_archive_workflow(
                         )
                     failure_count += len(pending_jobs)
                     pending_jobs.clear()
+                    consecutive_poll_failures = 0
                 else:
                     time.sleep(polling_wait_time)
                     polling_wait_time = min(
@@ -403,7 +516,7 @@ def run_archive_workflow(
                 urls_to_process.extend(requeued)
                 logging.info("Re-queued %d URLs due to transient API errors.", len(requeued))
 
-        if not urls_to_process and pending_jobs:
+        if pending_jobs and (not urls_to_process or len(pending_jobs) >= MAX_PENDING_JOBS):
             logging.info(
                 "%d captures remaining, starting next polling cycle in %d seconds...",
                 len(pending_jobs),
