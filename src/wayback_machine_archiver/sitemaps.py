@@ -82,10 +82,15 @@ def process_sitemaps(
     Recurses into sitemap index files up to MAX_SITEMAP_INDEX_DEPTH levels.
     """
     all_urls: set[str] = set()
+    visited: set[str] = set()
     queue: deque[tuple[str, int]] = deque((url, 0) for url in sitemap_urls)
 
     while queue:
         sitemap_url, depth = queue.popleft()
+        if sitemap_url in visited:
+            continue
+        visited.add(sitemap_url)
+
         try:
             sitemap_xml = _fetch_sitemap_bytes(sitemap_url, session)
             page_urls, child_sitemaps = extract_urls_from_sitemap(sitemap_xml)
