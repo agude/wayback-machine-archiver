@@ -979,3 +979,27 @@ def test_callback_requeue_then_success_produces_one_record(mock_sleep):
         error_code=None,
         job_id="job-2",
     )
+
+
+@mock.patch("wayback_machine_archiver.workflow.MAX_PENDING_JOBS", 1)
+@mock.patch("wayback_machine_archiver.workflow.time.sleep")
+def test_workflow_backs_off_when_the_pending_limit_blocks_submission(mock_sleep):
+    client = mock.Mock()
+    client.submit_capture.side_effect = ["job-a", "job-b"]
+    client.check_status_batch.side_effect = [
+        [{"job_id": "job-a", "status": "pending"}],
+        [{"job_id": "job-a", "status": "pending"}],
+        [{"job_id": "job-a", "status": "success", "timestamp": "20260101000000"}],
+        [{"job_id": "job-b", "status": "success", "timestamp": "20260101000000"}],
+    ]
+    urls = ["https://example.com/a", "https://example.com/b"]
+
+    assert run_archive_workflow(client, urls, 0, {}) == (2, 0)
+    assert mock_sleep.call_args_list == [
+        mock.call(0.2),
+        mock.call(5),
+        mock.call(0.2),
+        mock.call(7),
+        mock.call(0.2),
+        mock.call(0.2),
+    ]

@@ -403,7 +403,7 @@ def run_archive_workflow(
                 urls_to_process.extend(requeued)
                 logging.info("Re-queued %d URLs due to transient API errors.", len(requeued))
 
-        if not urls_to_process and pending_jobs:
+        if pending_jobs and (not urls_to_process or len(pending_jobs) >= MAX_PENDING_JOBS):
             logging.info(
                 "%d captures remaining, starting next polling cycle in %d seconds...",
                 len(pending_jobs),
